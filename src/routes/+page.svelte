@@ -13,8 +13,18 @@
   import UnlockModal from "$lib/components/UnlockModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
-  import { history, recordHistory } from "$lib/services/historyService.js";
-  import { soundDrop, soundDone, soundError } from "$lib/services/soundService.js";
+  import {
+    history,
+    recordHistory,
+    clearHistory,
+  } from "$lib/services/historyService.js";
+  import { tick, onDestroy } from "svelte";
+  import {
+    soundDrop,
+    soundShrink,
+    soundDone,
+    soundError,
+  } from "$lib/services/soundService.js";
 
   let mascot;
   let dragOver = false;
@@ -33,7 +43,43 @@
   let toast = ""; // "Saved 4.6 MB 🎉"
   let toastTimer = null;
 
+  // ── Shrinking dopamine ──
+  // squeeze: mascot squishes while crunching. pop: a scaled bounce on landing.
+  // popScale grows with how hard we crushed, so a 90% save feels bigger than 5%.
+  let popping = false; // toggles the one-shot bounce on landing
+  let popScale = 1; // 1..~1.18 — bigger crush, bigger bounce
+  let popTimer = null;
+  let displaySaved = 0; // count-up value for the total (bytes)
+  let countRaf = null;
+
   $: busy = phase === "busy";
+  $: squeezing = busy; // drives the CSS squish on the mascot slot
+
+  // Tween the "saved total" counter up to its real value — watching the number
+  // shrink your file is half the reward.
+  function countUpTo(target) {
+    if (countRaf) cancelAnimationFrame(countRaf);
+    const start = displaySaved;
+    const t0 = performance.now();
+    const dur = 650;
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur);
+      const eased = 1 - Math.pow(1 - k, 3); // easeOutCubic
+      displaySaved = start + (target - start) * eased;
+      if (k < 1) countRaf = requestAnimationFrame(step);
+      else displaySaved = target;
+    };
+    countRaf = requestAnimationFrame(step);
+  }
+
+  async function popMascot(ratioSaved) {
+    popScale = 1 + Math.max(0, Math.min(1, ratioSaved)) * 0.18;
+    popping = false;
+    await tick(); // drop the class so re-adding it restarts the animation
+    popping = true;
+    if (popTimer) clearTimeout(popTimer);
+    popTimer = setTimeout(() => (popping = false), 600);
+  }
 
   function setToast(msg) {
     toast = msg;
@@ -59,6 +105,7 @@
     }
 
     soundDrop();
+    soundShrink(); // the descending "squeeze" whoosh as crunching begins
     phase = "busy";
     progress = 0;
     determinate = false;
@@ -74,15 +121,21 @@
         },
       });
       let saved = 0;
+      let inputTotal = 0;
       for (const r of out) {
         results = [r, ...results];
         recordHistory(r);
         saved += Math.max(0, r.saved);
+        inputTotal += r.inputSize || 0;
         mascot?.react(Math.round(Math.max(0, r.saved) / 1024));
       }
       progress = 1;
+      // ratio of the whole batch that we shaved off — drives pop + sound size
+      const ratioSaved = inputTotal > 0 ? saved / inputTotal : 0;
       setToast(saved > 0 ? `Saved ${formatBytes(saved)} 🎉` : "Done ✨");
-      soundDone();
+      soundDone(ratioSaved);
+      popMascot(ratioSaved);
+      countUpTo(results.reduce((a, r) => a + Math.max(0, r.saved), 0));
     } catch (e) {
       error = e.message;
       phase = "idle";
@@ -104,15 +157,25 @@
   }
 
   $: totalSaved = results.reduce((a, r) => a + Math.max(0, r.saved), 0);
+
+  onDestroy(() => {
+    if (countRaf) cancelAnimationFrame(countRaf);
+    if (popTimer) clearTimeout(popTimer);
+    if (toastTimer) clearTimeout(toastTimer);
+  });
 </script>
 
 <PageLayout>
   <div class="flex w-full flex-col items-center gap-5">
-    <div class="mascot-slot">
+    <div
+      class="mascot-slot"
+      class:squeezing
+      class:popping
+      style="--pop-scale: {popScale}"
+    >
       <Mascot
         bind:this={mascot}
         character="brain"
-        accessory="head-mirror"
         theme={$theme}
         {busy}
         ariaLabel="DrShrink — choose a file"
@@ -172,7 +235,7 @@
     {#if results.length}
       <div class="w-full">
         <p class="mb-2 text-center text-sm font-bold text-accent">
-          Saved {formatBytes(totalSaved)} total 🎉
+          Saved {formatBytes(Math.round(displaySaved))} total 🎉
         </p>
         <ul class="flex flex-col gap-2">
           {#each results as r}
@@ -246,6 +309,50 @@
     /* big hero mascot, matching talktype/ziplist (~256px desktop) */
     width: clamp(180px, 42vw, 256px);
     height: clamp(180px, 42vw, 256px);
+    transform-origin: center bottom;
+    will-change: transform;
+  }
+
+  /* SQUEEZE — while crunching, the little guy gets compressed: squashes wide
+     and short, springs back, on a loop. Reads as "pressing the data flat." */
+  .mascot-slot.squeezing {
+    animation: dr-squeeze 0.7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+  @keyframes dr-squeeze {
+    0%,
+    100% {
+      transform: scale(1, 1) translateY(0);
+    }
+    45% {
+      transform: scale(1.1, 0.82) translateY(6%);
+    }
+    70% {
+      transform: scale(0.97, 1.04) translateY(-2%);
+    }
+  }
+
+  /* POP — on landing, a scaled bounce. --pop-scale grows with how hard we
+     crushed, so a 90% save visibly out-bounces a 5% one. */
+  .mascot-slot.popping {
+    animation: dr-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes dr-pop {
+    0% {
+      transform: scale(0.9, 1.06);
+    }
+    40% {
+      transform: scale(var(--pop-scale, 1.12), calc(2 - var(--pop-scale, 1.12)));
+    }
+    100% {
+      transform: scale(1, 1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mascot-slot.squeezing,
+    .mascot-slot.popping {
+      animation: none;
+    }
   }
 
   .drop {

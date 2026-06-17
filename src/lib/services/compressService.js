@@ -11,8 +11,14 @@
 import { zipSync, gzipSync } from "fflate";
 
 // ── quality knobs (80/20: one good default each, no UI) ──
-const IMAGE_QUALITY = 0.82;
-const MAX_DIMENSION = 2560;
+// Utility first: the output must still LOOK GOOD, not just be a small number.
+// 0.86 WebP is visually near-lossless for photos while still cutting size a lot.
+const IMAGE_QUALITY = 0.86;
+// Generous cap — only downscale genuinely huge images (phone photos are ~4000px);
+// keep them usable for printing/zoom, don't shrink to a web thumbnail.
+const MAX_DIMENSION = 3840;
+// If we'd save less than this fraction, it's not worth degrading — keep original.
+const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
 
 // ── type detection ──
 const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif)$/i;
@@ -74,7 +80,27 @@ function loadImage(file) {
 function canvasToBlob(canvas, type, quality) {
   return new Promise((r) => canvas.toBlob((b) => r(b), type, quality));
 }
+// Detect an animated GIF (multiple image frames) so we don't silently flatten it
+// to a single frame via Canvas. Looks for >1 Graphic Control Extension block.
+async function isAnimatedGif(file) {
+  if (!/\.gif$/i.test(file.name) && file.type !== "image/gif") return false;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let frames = 0;
+  for (let i = 0; i < bytes.length - 3; i++) {
+    // 0x21 0xF9 0x04 = Graphic Control Extension (one per frame)
+    if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
+      if (++frames > 1) return true;
+    }
+  }
+  return false;
+}
+
 async function compressImage(file) {
+  // Don't wreck animated GIFs — Canvas can only capture frame 1.
+  if (await isAnimatedGif(file)) {
+    throw new Error(`${file.name} is an animated GIF — DrShrink would flatten it. Skipped to keep it intact.`);
+  }
+
   const img = await loadImage(file);
   let { width, height } = img;
   const longest = Math.max(width, height);
@@ -97,6 +123,12 @@ async function compressImage(file) {
 
   candidates.sort((a, b) => a.blob.size - b.blob.size);
   const best = candidates[0];
+
+  // Utility guard: if re-encoding barely helps (or grows it), keep the original
+  // rather than hand back a degraded file for a meaningless saving.
+  if (!best || best.blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
+    return result(file, file.name, file.type || "image/*", file.size, "already efficient — kept original");
+  }
   return result(best.blob, `${baseName(file.name)}.min.${best.ext}`, best.type, file.size);
 }
 

@@ -42,8 +42,15 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
   structure + limits already exist; just needs the payment + a license/code issuer.
 - **Issue real contributor codes** — replace the placeholder VALID_CODES set with
   actual generated/redeemable codes (for gifts + multi-device). *(small once checkout exists)*
-- **Decide the actual value line** — is it size + batch, or something better
-  (priority formats, history export, no nags)? Worth a rethink before charging.
+- **Make the value line "more control," not just "bigger numbers."** Thin perk =
+  size+batch. Richer contributor perks that fit DrShrink:
+  - **Batch output organization** — name patterns, subfolders in the zip, "keep
+    originals + minified side by side"
+  - **Format choice** — the one settings-escape-hatch, gated: "give me JPEG not WebP",
+    "keep PNG transparency", target "smaller" vs "keep quality"
+  - **History export** (CSV of what you shrank) + re-download
+  - **Priority/new formats** — PDF, video, HEIC land supporter-first
+  - Decide the final mix before charging.
 
 ### Workers & performance (mobile resilience)
 - **Compress in a Web Worker** — move Canvas/ffmpeg off the main thread so the UI

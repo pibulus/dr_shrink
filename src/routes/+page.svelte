@@ -15,12 +15,29 @@
 
   let mascot;
   let dragOver = false;
-  let busy = false;
-  let busyLabel = "Shrinking…";
   let error = "";
   let showUnlock = false;
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
+
+  // Fused drop-zone state: idle | busy | done
+  let phase = "idle";
+  let busyLabel = "Shrinking…";
+  let progress = 0; // 0..1, determinate
+  let determinate = false; // true when we have real progress (audio)
+  let toast = ""; // "Saved 4.6 MB 🎉"
+  let toastTimer = null;
+
+  $: busy = phase === "busy";
+
+  function setToast(msg) {
+    toast = msg;
+    phase = "done";
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      if (phase === "done") phase = "idle";
+    }, 2600);
+  }
 
   async function handleFiles(fileList) {
     const files = [...fileList];
@@ -35,24 +52,33 @@
       return;
     }
 
-    busy = true;
+    phase = "busy";
+    progress = 0;
+    determinate = false;
     busyLabel = files.length > 1 ? "Zipping…" : "Shrinking…";
     mascot?.startThinking();
 
     try {
       const out = await compress(files, {
-        onProgress: (p) => (busyLabel = `Crunching… ${Math.round(p * 100)}%`),
+        onProgress: (p) => {
+          determinate = true;
+          progress = p;
+          busyLabel = `Crunching… ${Math.round(p * 100)}%`;
+        },
       });
+      let saved = 0;
       for (const r of out) {
         results = [r, ...results];
+        saved += Math.max(0, r.saved);
         mascot?.react(Math.round(Math.max(0, r.saved) / 1024));
       }
+      progress = 1;
+      setToast(saved > 0 ? `Saved ${formatBytes(saved)} 🎉` : "Done ✨");
     } catch (e) {
       error = e.message;
+      phase = "idle";
     }
 
-    busy = false;
-    busyLabel = "Shrinking…";
     mascot?.stopThinking();
   }
 
@@ -86,12 +112,14 @@
 
     <AnimatedTitle />
 
-    <!-- Drop zone -->
+    <!-- Drop zone — fused with progress + toast (TalkType pattern) -->
     <label
       for="file-input"
       class="drop"
       class:drop-over={dragOver}
-      class:drop-busy={busy}
+      class:drop-busy={phase === "busy"}
+      class:drop-done={phase === "done"}
+      style="--progress: {Math.round(progress * 100)}%"
       on:dragover|preventDefault={() => (dragOver = true)}
       on:dragleave={() => (dragOver = false)}
       on:drop={onDrop}
@@ -103,12 +131,25 @@
         class="sr-only"
         on:change={onPick}
       />
-      {#if busy}
-        <span class="drop-text">{busyLabel}</span>
-      {:else}
-        <span class="drop-text">Drop anything here</span>
-        <span class="drop-sub">images · text · docs · audio · batches → zip</span>
-      {/if}
+
+      <!-- progress fill sweeps across the zone -->
+      <span
+        class="drop-fill"
+        class:indeterminate={phase === "busy" && !determinate}
+        aria-hidden="true"
+      ></span>
+
+      <!-- center text swaps per phase -->
+      <span class="drop-content">
+        {#if phase === "busy"}
+          <span class="drop-text">{busyLabel}</span>
+        {:else if phase === "done"}
+          <span class="drop-text">{toast}</span>
+        {:else}
+          <span class="drop-text">Drop anything here</span>
+          <span class="drop-sub">images · text · docs · audio · batches → zip</span>
+        {/if}
+      </span>
     </label>
 
     {#if error}
@@ -179,6 +220,8 @@
   }
 
   .drop {
+    position: relative;
+    overflow: hidden;
     width: 100%;
     min-height: 168px;
     display: flex;
@@ -188,7 +231,7 @@
     gap: 0.35rem;
     cursor: pointer;
     border-radius: 24px;
-    border: 4px dashed rgba(147, 51, 234, 0.4);
+    border: 4px dashed rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.4);
     background: rgba(255, 255, 255, 0.45);
     transition:
       border-color 0.2s ease,
@@ -196,25 +239,80 @@
       transform 0.15s ease;
   }
   .drop:hover {
-    border-color: rgba(147, 51, 234, 0.7);
+    border-color: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7);
   }
   .drop-over {
-    border-color: #9333ea;
-    background: rgba(244, 114, 182, 0.12);
+    border-color: var(--ds-primary-color, #9333ea);
+    background: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.1);
     transform: scale(1.01);
   }
   .drop-busy {
     border-style: solid;
-    border-color: #c026d3;
+    border-color: var(--ds-accent-color, #c026d3);
+  }
+  .drop-done {
+    border-style: solid;
+    border-color: var(--ds-accent-color, #c026d3);
+    background: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.06);
+  }
+
+  /* the sweeping progress fill (behind the text) */
+  .drop-fill {
+    position: absolute;
+    inset: 0;
+    width: var(--progress, 0%);
+    background: linear-gradient(
+      90deg,
+      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.18),
+      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.32)
+    );
+    transition: width 0.3s ease;
+    pointer-events: none;
+  }
+  /* fast/unknown-length ops: a gentle indeterminate shimmer across the whole zone */
+  .drop-fill.indeterminate {
+    width: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.22) 50%,
+      transparent 100%
+    );
+    background-size: 220% 100%;
+    animation: drop-shimmer 1.1s ease-in-out infinite;
+  }
+  @keyframes drop-shimmer {
+    0% {
+      background-position: 120% 0;
+    }
+    100% {
+      background-position: -120% 0;
+    }
+  }
+
+  .drop-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    text-align: center;
   }
   .drop-text {
     font-size: 1.25rem;
     font-weight: 800;
-    color: #2a2233;
+    color: var(--ds-ink, #2a2233);
   }
   .drop-sub {
     font-size: 0.85rem;
     color: #8b8194;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .drop-fill.indeterminate {
+      animation: none;
+    }
   }
 
   .result {

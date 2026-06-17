@@ -11,4 +11,8 @@ export default defineConfig({
   esbuild: {
     drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
   },
+  build: {
+    // Never inline mascot art SVGs — <use href="data:..."> is blocked cross-origin.
+    assetsInlineLimit: (file) => (/mascot\/art\/.*\.svg$/.test(file) ? false : undefined),
+  },
 });

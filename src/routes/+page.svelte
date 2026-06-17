@@ -129,6 +129,7 @@
         type="file"
         multiple
         class="sr-only"
+        aria-label="Choose files to shrink"
         on:change={onPick}
       />
 

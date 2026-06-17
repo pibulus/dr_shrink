@@ -49,10 +49,15 @@
   }
 
   .bg-gradient-mesh {
-    background-color: var(--ds-bg, #f3e8ff);
-    background-image:
-      radial-gradient(circle at 20% 10%, var(--ds-bg-2, #fce7f3), transparent 55%),
-      radial-gradient(circle at 80% 90%, var(--ds-bg-2, #fce7f3), transparent 55%);
+    /* SoftStack signature: warm centered radial mesh (matches talktype/ziplist) */
+    background-color: var(--ds-bg, #fff6e6);
+    background-image: radial-gradient(
+      circle at center,
+      var(--ds-bg, #fff6e6) 0%,
+      var(--ds-bg, #fff6e6) 40%,
+      var(--ds-bg-2, #fff0d4) 70%,
+      var(--ds-bg-3, #ffe8c8) 100%
+    );
   }
 
   .ds-app-footer {

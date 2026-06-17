@@ -3,13 +3,14 @@
 
 export const drShrinkThemes = {
   vibrant: {
-    start: "#7c3aed", startBright: "#8b5cf6",
-    mid1: "#9333ea", mid1Bright: "#a855f7",
-    mid2: "#c026d3", mid2Bright: "#d946ef",
-    mid3: "#db2777", mid3Bright: "#ec4899",
-    end: "#f472b6", endBright: "#f9a8d4",
-    glowPrimary: "rgba(124,58,237,1)", glowSecondary: "rgba(192,38,211,0.9)", glowTertiary: "rgba(244,114,182,0.8)",
-    shadowColor: "rgba(124,58,237,0.3)", shadowColorBright: "rgba(192,38,211,0.4)", shadowColorBrightest: "rgba(244,114,182,0.5)",
+    // soft pastel lavender → rose (matches the provided brain art, less garish)
+    start: "#b3a5e6", startBright: "#c4b8ee",
+    mid1: "#bfa8e0", mid1Bright: "#cdb9ea",
+    mid2: "#d4a8d8", mid2Bright: "#e0bce4",
+    mid3: "#eaa6c8", mid3Bright: "#f2bcd6",
+    end: "#f7a8c4", endBright: "#fbc2d6",
+    glowPrimary: "rgba(179,165,230,0.9)", glowSecondary: "rgba(212,168,216,0.85)", glowTertiary: "rgba(247,168,196,0.8)",
+    shadowColor: "rgba(179,165,230,0.28)", shadowColorBright: "rgba(212,168,216,0.34)", shadowColorBrightest: "rgba(247,168,196,0.4)",
   },
   warm: {
     start: "#ff6a3d", startBright: "#ff8159",

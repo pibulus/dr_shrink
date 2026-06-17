@@ -216,8 +216,9 @@
 
 <style>
   .mascot-slot {
-    width: 168px;
-    height: 168px;
+    /* big hero mascot, matching talktype/ziplist (~256px desktop) */
+    width: clamp(180px, 42vw, 256px);
+    height: clamp(180px, 42vw, 256px);
   }
 
   .drop {

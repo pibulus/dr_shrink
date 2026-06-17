@@ -13,6 +13,7 @@
   import UnlockModal from "$lib/components/UnlockModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
+  import ShrinkConfetti from "$lib/components/ShrinkConfetti.svelte";
   import {
     history,
     recordHistory,
@@ -39,6 +40,8 @@
   } from "$lib/services/delightService.js";
 
   let mascot;
+  let confetti; // ShrinkConfetti instance — burst() on big wins
+  let mascotSlotEl; // for locating the burst origin
   let dragOver = false;
   let error = "";
   let showUnlock = false;
@@ -78,6 +81,14 @@
     eggQuip = msg;
     if (eggTimer) clearTimeout(eggTimer);
     eggTimer = setTimeout(() => (eggQuip = ""), ms);
+  }
+
+  // Fire confetti from the doctor's head — the big-win payoff.
+  function celebrate() {
+    const el = mascotSlotEl;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    confetti?.burst(r.left + r.width / 2, r.top + r.height * 0.35);
   }
 
   // A click on the doctor normally opens the file picker. But rapid-fire pokes
@@ -131,7 +142,7 @@
     await tick(); // drop the class so re-adding it restarts the animation
     popping = true;
     if (popTimer) clearTimeout(popTimer);
-    popTimer = setTimeout(() => (popping = false), 600);
+    popTimer = setTimeout(() => (popping = false), 720);
   }
 
   function setToast(msg) {
@@ -195,7 +206,10 @@
       setToast(
         allGrew ? refuseLine() : doneToast(saved, ratioSaved, formatBytes),
       );
-      if (bigWin) flashEgg("🤯", 1600); // little blast over the head on huge wins
+      if (bigWin) {
+        flashEgg("🤯", 1600); // little blast over the head on huge wins
+        celebrate(); // 🎊 emoji confetti from the doctor
+      }
       soundDone(ratioSaved);
       popMascot(ratioSaved, bigWin);
       countUpTo(results.reduce((a, r) => a + Math.max(0, r.saved), 0));
@@ -233,6 +247,7 @@
 <PageLayout>
   <div class="flex w-full flex-col items-center gap-5">
     <div
+      bind:this={mascotSlotEl}
       class="mascot-slot"
       class:squeezing
       class:popping
@@ -374,6 +389,8 @@
 <OptionsModal open={showOptions} on:close={() => (showOptions = false)} />
 <UnlockModal open={showUnlock} on:close={() => (showUnlock = false)} />
 
+<ShrinkConfetti bind:this={confetti} />
+
 <style>
   .mascot-slot {
     /* big hero mascot, matching talktype/ziplist (~256px desktop) */
@@ -432,16 +449,30 @@
     }
   }
 
-  /* POP — on landing, a scaled bounce. --pop-scale grows with how hard we
-     crushed, so a 90% save visibly out-bounces a 5% one. */
+  /* POP — on landing, a real spring (Comeau linear() physics, not a bezier).
+     The spring curve drives 0→1 progress with overshoot + wobble; the keyframe
+     squishes to --pop-scale at the midpoint then springs home. Bigger crush →
+     bigger --pop-scale → a bouncier landing. */
   .mascot-slot.popping {
-    animation: dr-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+    animation: dr-pop 0.7s
+      linear(
+        0,
+        0.402 7.4%,
+        1.18 18.4%,
+        1.298 23.5%,
+        1.248 31.5%,
+        0.9 47.1%,
+        0.965 58.5%,
+        1.013 70.1%,
+        1.002 89.3%,
+        1
+      );
   }
   @keyframes dr-pop {
     0% {
-      transform: scale(0.9, 1.06);
+      transform: scale(0.92, 1.06);
     }
-    40% {
+    45% {
       transform: scale(var(--pop-scale, 1.12), calc(2 - var(--pop-scale, 1.12)));
     }
     100% {
@@ -453,6 +484,11 @@
     .mascot-slot.squeezing,
     .mascot-slot.popping {
       animation: none;
+    }
+    .drop:active,
+    .dl:active,
+    .dl:hover {
+      transform: none;
     }
   }
 
@@ -477,6 +513,10 @@
   }
   .drop:hover {
     border-color: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7);
+  }
+  /* micro-bounce — tactile squish on press (Comeau one-liner) */
+  .drop:active {
+    transform: scale(0.985);
   }
   .drop-over {
     border-color: var(--ds-primary-color, #9333ea);
@@ -571,10 +611,16 @@
     font-size: 0.85rem;
     font-weight: 800;
     color: #fff;
-    transition: background 0.15s ease;
+    transition:
+      background 0.15s ease,
+      transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .dl:hover {
     background: #7c3aed;
+    transform: translateY(-1px);
+  }
+  .dl:active {
+    transform: scale(0.94);
   }
   .sr-only {
     position: absolute;

@@ -43,8 +43,8 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 
 - **Real checkout** — wire LemonSqueezy / Stripe / Polar for the $9/yr. The gating
   structure + limits already exist; just needs the payment + a license/code issuer.
-- **Issue real contributor codes** — replace the placeholder VALID_CODES set with
-  actual generated/redeemable codes (for gifts + multi-device). _(small once checkout exists)_
+- **Issue real contributor codes** — replace the placeholder VALID*CODES set with
+  actual generated/redeemable codes (for gifts + multi-device). *(small once checkout exists)\_
 - **Make the value line "more control," not just "bigger numbers."** Thin perk =
   size+batch. Richer contributor perks that fit DrShrink:
   - **Batch output organization** — name patterns, subfolders in the zip, "keep

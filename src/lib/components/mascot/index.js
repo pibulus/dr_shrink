@@ -22,4 +22,7 @@ export {
   FALLBACK_THEME,
 } from "./mascotTheme.js";
 
+// Accessory ("new hat") wardrobe.
+export { ACCESSORIES, getAccessory, getAccessoryNames } from "./accessories.js";
+
 export default Mascot;

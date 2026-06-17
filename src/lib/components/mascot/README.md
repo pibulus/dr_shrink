@@ -108,3 +108,20 @@ outline (black on top, gradient behind) — that's the signature look.
 
 To turn a PNG into this: trace the outer silhouette → `#mascot-body-path` +
 `#mascot-background`; the engine supplies the eyes (place them over the silhouette).
+
+## Accessories ("new hat", à la Malibu Stacey)
+
+Modular hats/patches layered on top of any mascot. The `accessory` prop picks an
+entry from `accessories.js`; each is SVG markup authored in the same 1024 viewBox,
+rendered in a layer above the body but inside the wobble group (so it rides the
+float/wobble/spin).
+
+```svelte
+<Mascot theme="purple" accessory="pirate-patch" />
+```
+
+Built-in: `none`, `pirate-patch`, `top-hat`, `party-hat`, `head-mirror`. Add your
+own by appending to `ACCESSORIES` in `accessories.js` (draw in 1024 space; hats sit
+around y≈120–340, centered x≈512). Use `accessoryOffsetY` to nudge per-mascot if a
+character's head sits higher/lower. An accessory can also declare a `personality`
+to tweak the mascot's mood when worn.

@@ -14,6 +14,7 @@
 	import { createEyeTracking } from './eyeTracking.js';
 	import { getGradientId } from './gradients.js';
 	import { buildMascotPersonality } from './personality.js';
+	import { getAccessory } from './accessories.js';
 
 	const dispatch = createEventDispatcher();
 
@@ -35,6 +36,10 @@
 	export let interactive = true;
 	// Accessible label for the interactive button.
 	export let ariaLabel = 'Mascot';
+	// "New hat" — accessory name from accessories.js (e.g. 'top-hat', 'pirate-patch').
+	export let accessory = 'none';
+	// Per-mascot vertical nudge for the accessory (1024-space units).
+	export let accessoryOffsetY = 0;
 	const mascotInstanceId = Symbol('mascot-instance');
 	let mascotSvg;
 	let spinPivotElement;
@@ -58,6 +63,7 @@
 	$: animationsEnabled = !paused;
 	$: animationClass = animationsEnabled ? 'animations-enabled' : 'animations-paused';
 	$: gradientId = getGradientId(currentTheme);
+	$: accessorySvg = getAccessory(accessory).svg;
 	$: specialAnimationClass =
 		$mascotState.current === ANIMATION_STATES.EASTER_EGG && $mascotState.specialAnimation
 			? `mascot-special-${$mascotState.specialAnimation}`
@@ -390,6 +396,16 @@
 							fill="#000000"
 						/>
 					</g>
+
+					{#if accessorySvg}
+						<!-- The "new hat" — accessory layer, rides the wobble/float, sits on top -->
+						<g
+							class="mascot-layer mascot-accessory"
+							transform={accessoryOffsetY ? `translate(0 ${accessoryOffsetY})` : undefined}
+						>
+							{@html accessorySvg}
+						</g>
+					{/if}
 				</g>
 				<!-- End of mascot-wobble-group -->
 			</g>

@@ -91,7 +91,14 @@ export function soundDrop() {
 export function soundShrink() {
   play([
     { freq: 760, slideTo: 240, dur: 0.22, type: "sine", gain: 0.05 },
-    { freq: 380, slideTo: 150, start: 0.04, dur: 0.2, type: "triangle", gain: 0.03 },
+    {
+      freq: 380,
+      slideTo: 150,
+      start: 0.04,
+      dur: 0.2,
+      type: "triangle",
+      gain: 0.03,
+    },
   ]);
 }
 
@@ -121,7 +128,13 @@ export function soundDone(ratioSaved = 0) {
   }
   if (r >= 0.6) {
     // a little sparkle flourish for the big wins
-    notes.push({ freq: 1174.66, start: 0.22, dur: 0.14, type: "sine", gain: 0.045 }); // D6
+    notes.push({
+      freq: 1174.66,
+      start: 0.22,
+      dur: 0.14,
+      type: "sine",
+      gain: 0.045,
+    }); // D6
   }
   play(notes);
 }
@@ -129,4 +142,14 @@ export function soundDone(ratioSaved = 0) {
 /** A soft low "nope" for errors. */
 export function soundError() {
   play([{ freq: 196.0, dur: 0.18, type: "triangle", gain: 0.05 }]); // G3
+}
+
+/** A giggly little arpeggio when you tickle the doctor (rapid pokes). */
+export function soundTickle() {
+  play([
+    { freq: 659.25, start: 0, dur: 0.07, type: "triangle", gain: 0.05 }, // E5
+    { freq: 783.99, start: 0.06, dur: 0.07, type: "triangle", gain: 0.05 }, // G5
+    { freq: 987.77, start: 0.12, dur: 0.07, type: "triangle", gain: 0.05 }, // B5
+    { freq: 1318.51, start: 0.18, dur: 0.09, type: "triangle", gain: 0.05 }, // E6
+  ]);
 }

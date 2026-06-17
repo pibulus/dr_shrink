@@ -24,7 +24,19 @@
     soundShrink,
     soundDone,
     soundError,
+    soundTickle,
   } from "$lib/services/soundService.js";
+  import {
+    dropSubtitle,
+    crunchLabel,
+    maybeCrunchQuip,
+    doneToast,
+    isBigWin,
+    refuseLine,
+    tickleQuip,
+    TICKLE_THRESHOLD,
+    TICKLE_WINDOW,
+  } from "$lib/services/delightService.js";
 
   let mascot;
   let dragOver = false;
@@ -52,8 +64,48 @@
   let displaySaved = 0; // count-up value for the total (bytes)
   let countRaf = null;
 
+  // ── Delight: randomized copy + the tickle easter egg ──
+  let subtitle = dropSubtitle(); // rolls on load, re-rolls each return to idle
+  let eggQuip = ""; // little speech-bubble over the mascot ("hehe", "🤯 vaporized")
+  let eggTimer = null;
+  let tickleCount = 0;
+  let tickleResetTimer = null;
+
   $: busy = phase === "busy";
   $: squeezing = busy; // drives the CSS squish on the mascot slot
+
+  function flashEgg(msg, ms = 1400) {
+    eggQuip = msg;
+    if (eggTimer) clearTimeout(eggTimer);
+    eggTimer = setTimeout(() => (eggQuip = ""), ms);
+  }
+
+  // A click on the doctor normally opens the file picker. But rapid-fire pokes
+  // are a tickle, not "open the dialog 5 times" — so once a fast streak builds,
+  // we swallow the picker and giggle instead. Returns true if the picker should
+  // still open (i.e. this was a normal, deliberate click).
+  let lastPokeAt = 0;
+  function onMascotPoke() {
+    const now = performance.now();
+    const fast = now - lastPokeAt < 450; // came hot on the heels of the last
+    lastPokeAt = now;
+
+    if (fast) tickleCount += 1;
+    else tickleCount = 1;
+    if (tickleResetTimer) clearTimeout(tickleResetTimer);
+    tickleResetTimer = setTimeout(() => (tickleCount = 0), TICKLE_WINDOW);
+
+    if (tickleCount >= TICKLE_THRESHOLD) {
+      tickleCount = 0;
+      soundTickle();
+      flashEgg(tickleQuip());
+      mascot?.react(120); // a happy blink burst
+      return false; // it's a tickle — don't open the picker
+    }
+    // Suppress the picker for the fast in-between pokes too, so a tickle streak
+    // doesn't fling open a stack of dialogs. A calm single click still opens it.
+    return !fast;
+  }
 
   // Tween the "saved total" counter up to its real value — watching the number
   // shrink your file is half the reward.
@@ -72,8 +124,9 @@
     countRaf = requestAnimationFrame(step);
   }
 
-  async function popMascot(ratioSaved) {
-    popScale = 1 + Math.max(0, Math.min(1, ratioSaved)) * 0.18;
+  async function popMascot(ratioSaved, isBig) {
+    // big wins bounce harder, on top of the ratio scaling
+    popScale = 1 + Math.max(0, Math.min(1, ratioSaved)) * 0.18 + (isBig ? 0.12 : 0);
     popping = false;
     await tick(); // drop the class so re-adding it restarts the animation
     popping = true;
@@ -86,7 +139,10 @@
     phase = "done";
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
-      if (phase === "done") phase = "idle";
+      if (phase === "done") {
+        phase = "idle";
+        subtitle = dropSubtitle(); // fresh line for next time
+      }
     }, 2600);
   }
 
@@ -109,6 +165,7 @@
     phase = "busy";
     progress = 0;
     determinate = false;
+    const quip = maybeCrunchQuip(); // 1-in-4 runs get a flavor line
     busyLabel = files.length > 1 ? "Zipping…" : "Shrinking…";
     mascot?.startThinking();
 
@@ -117,7 +174,7 @@
         onProgress: (p) => {
           determinate = true;
           progress = p;
-          busyLabel = `Crunching… ${Math.round(p * 100)}%`;
+          busyLabel = crunchLabel(Math.round(p * 100), quip);
         },
       });
       let saved = 0;
@@ -132,9 +189,15 @@
       progress = 1;
       // ratio of the whole batch that we shaved off — drives pop + sound size
       const ratioSaved = inputTotal > 0 ? saved / inputTotal : 0;
-      setToast(saved > 0 ? `Saved ${formatBytes(saved)} 🎉` : "Done ✨");
+      const bigWin = isBigWin(saved, ratioSaved);
+      // Nothing shrank (everything was already compressed) → deadpan doctor line
+      const allGrew = out.length > 0 && out.every((r) => r.grew);
+      setToast(
+        allGrew ? refuseLine() : doneToast(saved, ratioSaved, formatBytes),
+      );
+      if (bigWin) flashEgg("🤯", 1600); // little blast over the head on huge wins
       soundDone(ratioSaved);
-      popMascot(ratioSaved);
+      popMascot(ratioSaved, bigWin);
       countUpTo(results.reduce((a, r) => a + Math.max(0, r.saved), 0));
     } catch (e) {
       error = e.message;
@@ -162,6 +225,8 @@
     if (countRaf) cancelAnimationFrame(countRaf);
     if (popTimer) clearTimeout(popTimer);
     if (toastTimer) clearTimeout(toastTimer);
+    if (eggTimer) clearTimeout(eggTimer);
+    if (tickleResetTimer) clearTimeout(tickleResetTimer);
   });
 </script>
 
@@ -173,13 +238,18 @@
       class:popping
       style="--pop-scale: {popScale}"
     >
+      {#if eggQuip}
+        <span class="egg-bubble" aria-hidden="true">{eggQuip}</span>
+      {/if}
       <Mascot
         bind:this={mascot}
         character="brain"
         theme={$theme}
         {busy}
         ariaLabel="DrShrink — choose a file"
-        on:activate={() => document.getElementById("file-input")?.click()}
+        on:activate={() => {
+          if (onMascotPoke()) document.getElementById("file-input")?.click();
+        }}
       />
     </div>
 
@@ -221,7 +291,7 @@
           <span class="drop-text">{toast}</span>
         {:else}
           <span class="drop-text">Drop anything in</span>
-          <span class="drop-sub">photos · audio · docs · text · a whole pile → zip</span>
+          <span class="drop-sub">{subtitle}</span>
         {/if}
       </span>
     </label>
@@ -307,10 +377,41 @@
 <style>
   .mascot-slot {
     /* big hero mascot, matching talktype/ziplist (~256px desktop) */
+    position: relative;
     width: clamp(180px, 42vw, 256px);
     height: clamp(180px, 42vw, 256px);
     transform-origin: center bottom;
     will-change: transform;
+  }
+
+  /* little speech bubble that pops over the doctor's head (tickle / 🤯) */
+  .egg-bubble {
+    position: absolute;
+    top: -0.25rem;
+    left: 50%;
+    z-index: 3;
+    transform: translateX(-50%);
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    background: #fff;
+    border: 2px solid rgba(0, 0, 0, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--ds-ink, #2a2233);
+    white-space: nowrap;
+    pointer-events: none;
+    animation: egg-rise 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes egg-rise {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 6px) scale(0.8);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0) scale(1);
+    }
   }
 
   /* SQUEEZE — while crunching, the little guy gets compressed: squashes wide

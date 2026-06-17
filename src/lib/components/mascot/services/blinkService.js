@@ -6,20 +6,24 @@
  * while coordinating with the reactive state system.
  */
 
-import { get } from 'svelte/store';
+import { get } from "svelte/store";
 import {
-	BLINK_CONFIG,
-	ANIMATION_STATES,
-	EYE_CONFIG,
-	ANIMATION_BEHAVIORS
-} from '../animationConfig.js';
-import { seedRandom, cleanupTimers, isBrowser } from '../utils/animationUtils.js';
-import { mascotState } from '../stores/mascotState.js';
+  BLINK_CONFIG,
+  ANIMATION_STATES,
+  EYE_CONFIG,
+  ANIMATION_BEHAVIORS,
+} from "../animationConfig.js";
+import {
+  seedRandom,
+  cleanupTimers,
+  isBrowser,
+} from "../utils/animationUtils.js";
+import { mascotState } from "../stores/mascotState.js";
 
 // Animation timers
 const timers = {
-	blinkTimeoutId: null,
-	thinkingIntervalId: null
+  blinkTimeoutId: null,
+  thinkingIntervalId: null,
 };
 
 // Blinking state
@@ -32,23 +36,23 @@ let blinkCounter = 0;
  * @param {SVGElement} rightEye - Right eye SVG element
  */
 export function applyEyeTransforms(leftEye, rightEye) {
-	if (!leftEye || !rightEye) return;
+  if (!leftEye || !rightEye) return;
 
-	const state = get(mascotState);
+  const state = get(mascotState);
 
-	if (state.eyesClosed) {
-		// Apply closed eyes transform
-		leftEye.style.transform = `scaleY(${EYE_CONFIG.CLOSED_SCALE})`;
-		rightEye.style.transform = `scaleY(${EYE_CONFIG.CLOSED_SCALE})`;
-	} else {
-		// Apply position transforms
-		const { x, y } = state.eyePosition;
-		const xTransform = x * EYE_CONFIG.X_MULTIPLIER;
-		const yTransform = y * EYE_CONFIG.Y_MULTIPLIER;
+  if (state.eyesClosed) {
+    // Apply closed eyes transform
+    leftEye.style.transform = `scaleY(${EYE_CONFIG.CLOSED_SCALE})`;
+    rightEye.style.transform = `scaleY(${EYE_CONFIG.CLOSED_SCALE})`;
+  } else {
+    // Apply position transforms
+    const { x, y } = state.eyePosition;
+    const xTransform = x * EYE_CONFIG.X_MULTIPLIER;
+    const yTransform = y * EYE_CONFIG.Y_MULTIPLIER;
 
-		leftEye.style.transform = `translate(${xTransform}px, ${yTransform}px)`;
-		rightEye.style.transform = `translate(${xTransform}px, ${yTransform}px)`;
-	}
+    leftEye.style.transform = `translate(${xTransform}px, ${yTransform}px)`;
+    rightEye.style.transform = `translate(${xTransform}px, ${yTransform}px)`;
+  }
 }
 
 /**
@@ -59,59 +63,62 @@ export function applyEyeTransforms(leftEye, rightEye) {
  * @returns {Function} Cleanup function
  */
 export function initBlinking(elements, config = {}) {
-	if (!isBrowser()) return () => {};
+  if (!isBrowser()) return () => {};
 
-	const { leftEye, rightEye } = elements;
-	const { seed = 0 } = config;
+  const { leftEye, rightEye } = elements;
+  const { seed = 0 } = config;
 
-	// Set initial counter
-	blinkCounter = 0;
+  // Set initial counter
+  blinkCounter = 0;
 
-	// Initial application of eye transforms
-	applyEyeTransforms(leftEye, rightEye);
+  // Initial application of eye transforms
+  applyEyeTransforms(leftEye, rightEye);
 
-	// Set up state listener for animation state changes
-	const unsubscribe = mascotState.subscribe((state) => {
-		// Always update eye transforms when state changes (including eye position)
-		applyEyeTransforms(leftEye, rightEye);
+  // Set up state listener for animation state changes
+  const unsubscribe = mascotState.subscribe((state) => {
+    // Always update eye transforms when state changes (including eye position)
+    applyEyeTransforms(leftEye, rightEye);
 
-		// Clean up any existing animations when state changes
-		if (state.current !== state.previous) {
-			// Always clean up thinking interval when leaving THINKING state
-			if (state.previous === ANIMATION_STATES.THINKING && timers.thinkingIntervalId) {
-				clearInterval(timers.thinkingIntervalId);
-				timers.thinkingIntervalId = null;
+    // Clean up any existing animations when state changes
+    if (state.current !== state.previous) {
+      // Always clean up thinking interval when leaving THINKING state
+      if (
+        state.previous === ANIMATION_STATES.THINKING &&
+        timers.thinkingIntervalId
+      ) {
+        clearInterval(timers.thinkingIntervalId);
+        timers.thinkingIntervalId = null;
 
-				// Ensure eyes are open when leaving thinking state
-				if (state.eyesClosed) {
-					mascotState.setEyesClosed(false);
-					applyEyeTransforms(leftEye, rightEye);
-				}
-			}
-		}
+        // Ensure eyes are open when leaving thinking state
+        if (state.eyesClosed) {
+          mascotState.setEyesClosed(false);
+          applyEyeTransforms(leftEye, rightEye);
+        }
+      }
+    }
 
-		// Apply animations for current state
-		if (state.current === ANIMATION_STATES.IDLE) {
-			applyRandomBlinkEffect(elements, { seed });
-		} else if (state.current === ANIMATION_STATES.THINKING) {
-			applyRhythmicBlinkEffect(elements);
-		}
+    // Apply animations for current state
+    if (state.current === ANIMATION_STATES.IDLE) {
+      applyRandomBlinkEffect(elements, { seed });
+    } else if (state.current === ANIMATION_STATES.THINKING) {
+      applyRhythmicBlinkEffect(elements);
+    }
 
-		// Handle transition from recording/thinking to idle
-		if (
-			state.current === ANIMATION_STATES.IDLE &&
-			(state.previous === ANIMATION_STATES.RECORDING ||
-				state.previous === ANIMATION_STATES.THINKING)
-		) {
-			applyQuickBlinkEffect(elements, state.previous);
-		}
-	});
+    // Handle transition from recording/thinking to idle
+    if (
+      state.current === ANIMATION_STATES.IDLE &&
+      (state.previous === ANIMATION_STATES.RECORDING ||
+        state.previous === ANIMATION_STATES.THINKING)
+    ) {
+      applyQuickBlinkEffect(elements, state.previous);
+    }
+  });
 
-	// Return cleanup function
-	return () => {
-		unsubscribe();
-		cleanupTimers(timers);
-	};
+  // Return cleanup function
+  return () => {
+    unsubscribe();
+    cleanupTimers(timers);
+  };
 }
 
 /**
@@ -121,21 +128,21 @@ export function initBlinking(elements, config = {}) {
  * @param {Function} onComplete - Optional callback when blink completes
  */
 export function performSingleBlink(elements, onComplete) {
-	const { leftEye, rightEye } = elements;
+  const { leftEye, rightEye } = elements;
 
-	// Close eyes
-	mascotState.setEyesClosed(true);
-	applyEyeTransforms(leftEye, rightEye);
+  // Close eyes
+  mascotState.setEyesClosed(true);
+  applyEyeTransforms(leftEye, rightEye);
 
-	// Open eyes after duration
-	setTimeout(() => {
-		mascotState.setEyesClosed(false);
-		applyEyeTransforms(leftEye, rightEye);
+  // Open eyes after duration
+  setTimeout(() => {
+    mascotState.setEyesClosed(false);
+    applyEyeTransforms(leftEye, rightEye);
 
-		if (onComplete) {
-			onComplete();
-		}
-	}, BLINK_CONFIG.SINGLE_DURATION);
+    if (onComplete) {
+      onComplete();
+    }
+  }, BLINK_CONFIG.SINGLE_DURATION);
 }
 
 /**
@@ -145,32 +152,32 @@ export function performSingleBlink(elements, onComplete) {
  * @param {Function} onComplete - Optional callback when blink completes
  */
 export function performDoubleBlink(elements, onComplete) {
-	const { leftEye, rightEye } = elements;
+  const { leftEye, rightEye } = elements;
 
-	// First blink
-	mascotState.setEyesClosed(true);
-	applyEyeTransforms(leftEye, rightEye);
+  // First blink
+  mascotState.setEyesClosed(true);
+  applyEyeTransforms(leftEye, rightEye);
 
-	setTimeout(() => {
-		// Open eyes briefly
-		mascotState.setEyesClosed(false);
-		applyEyeTransforms(leftEye, rightEye);
+  setTimeout(() => {
+    // Open eyes briefly
+    mascotState.setEyesClosed(false);
+    applyEyeTransforms(leftEye, rightEye);
 
-		// Second blink
-		setTimeout(() => {
-			mascotState.setEyesClosed(true);
-			applyEyeTransforms(leftEye, rightEye);
+    // Second blink
+    setTimeout(() => {
+      mascotState.setEyesClosed(true);
+      applyEyeTransforms(leftEye, rightEye);
 
-			setTimeout(() => {
-				mascotState.setEyesClosed(false);
-				applyEyeTransforms(leftEye, rightEye);
+      setTimeout(() => {
+        mascotState.setEyesClosed(false);
+        applyEyeTransforms(leftEye, rightEye);
 
-				if (onComplete) {
-					onComplete();
-				}
-			}, BLINK_CONFIG.SINGLE_DURATION);
-		}, BLINK_CONFIG.DOUBLE_PAUSE);
-	}, BLINK_CONFIG.SINGLE_DURATION);
+        if (onComplete) {
+          onComplete();
+        }
+      }, BLINK_CONFIG.SINGLE_DURATION);
+    }, BLINK_CONFIG.DOUBLE_PAUSE);
+  }, BLINK_CONFIG.SINGLE_DURATION);
 }
 
 /**
@@ -181,32 +188,32 @@ export function performDoubleBlink(elements, onComplete) {
  * @param {Function} onComplete - Optional callback when blink completes
  */
 export function performAsymmetricBlink(elements, onComplete) {
-	const { leftEye, rightEye } = elements;
+  const { leftEye, rightEye } = elements;
 
-	// Get current eye position for proper restoration
-	const state = get(mascotState);
-	const { x, y } = state.eyePosition;
+  // Get current eye position for proper restoration
+  const state = get(mascotState);
+  const { x, y } = state.eyePosition;
 
-	// Generate random scales for each eye (0.3 to 1.0)
-	const leftScale = 0.3 + Math.random() * 0.7;
-	const rightScale = 0.3 + Math.random() * 0.7;
+  // Generate random scales for each eye (0.3 to 1.0)
+  const leftScale = 0.3 + Math.random() * 0.7;
+  const rightScale = 0.3 + Math.random() * 0.7;
 
-	// Apply asymmetric scales while maintaining eye position
-	const xTransform = x * EYE_CONFIG.X_MULTIPLIER;
-	const yTransform = y * EYE_CONFIG.Y_MULTIPLIER;
+  // Apply asymmetric scales while maintaining eye position
+  const xTransform = x * EYE_CONFIG.X_MULTIPLIER;
+  const yTransform = y * EYE_CONFIG.Y_MULTIPLIER;
 
-	leftEye.style.transform = `translate(${xTransform}px, ${yTransform}px) scaleY(${leftScale})`;
-	rightEye.style.transform = `translate(${xTransform}px, ${yTransform}px) scaleY(${rightScale})`;
+  leftEye.style.transform = `translate(${xTransform}px, ${yTransform}px) scaleY(${leftScale})`;
+  rightEye.style.transform = `translate(${xTransform}px, ${yTransform}px) scaleY(${rightScale})`;
 
-	// Return to normal after duration
-	setTimeout(() => {
-		// Restore normal transforms
-		applyEyeTransforms(leftEye, rightEye);
+  // Return to normal after duration
+  setTimeout(() => {
+    // Restore normal transforms
+    applyEyeTransforms(leftEye, rightEye);
 
-		if (onComplete) {
-			onComplete();
-		}
-	}, 300);
+    if (onComplete) {
+      onComplete();
+    }
+  }, 300);
 }
 
 /**
@@ -216,47 +223,49 @@ export function performAsymmetricBlink(elements, onComplete) {
  * @param {Object} config - Blink configuration
  */
 export function applyRandomBlinkEffect(elements, config = {}) {
-	const state = get(mascotState);
+  const state = get(mascotState);
 
-	// Only apply when in idle state
-	if (state.current !== ANIMATION_STATES.IDLE) return;
+  // Only apply when in idle state
+  if (state.current !== ANIMATION_STATES.IDLE) return;
 
-	const { seed = 0 } = config;
+  const { seed = 0 } = config;
 
-	// Schedule next random blink
-	const scheduleNextBlink = () => {
-		// Clear any existing timeout
-		if (timers.blinkTimeoutId) {
-			clearTimeout(timers.blinkTimeoutId);
-		}
+  // Schedule next random blink
+  const scheduleNextBlink = () => {
+    // Clear any existing timeout
+    if (timers.blinkTimeoutId) {
+      clearTimeout(timers.blinkTimeoutId);
+    }
 
-		// Random delay between blinks
-		const random = seedRandom(seed, blinkCounter++, 0, 1);
-		const delay = BLINK_CONFIG.MIN_GAP + random * (BLINK_CONFIG.MAX_GAP - BLINK_CONFIG.MIN_GAP);
+    // Random delay between blinks
+    const random = seedRandom(seed, blinkCounter++, 0, 1);
+    const delay =
+      BLINK_CONFIG.MIN_GAP +
+      random * (BLINK_CONFIG.MAX_GAP - BLINK_CONFIG.MIN_GAP);
 
-		timers.blinkTimeoutId = setTimeout(() => {
-			// Check if still in idle state
-			const currentState = get(mascotState);
-			if (currentState.current !== ANIMATION_STATES.IDLE) {
-				return;
-			}
+    timers.blinkTimeoutId = setTimeout(() => {
+      // Check if still in idle state
+      const currentState = get(mascotState);
+      if (currentState.current !== ANIMATION_STATES.IDLE) {
+        return;
+      }
 
-			// Execute blink based on random chance
-			const blinkTypeRandom = seedRandom(seed, blinkCounter++, 0, 1);
+      // Execute blink based on random chance
+      const blinkTypeRandom = seedRandom(seed, blinkCounter++, 0, 1);
 
-			// 2% chance for asymmetric "tripping balls" blink
-			if (blinkTypeRandom < 0.02) {
-				performAsymmetricBlink(elements, () => scheduleNextBlink());
-			} else if (blinkTypeRandom < 0.02 + BLINK_CONFIG.DOUBLE_CHANCE) {
-				performDoubleBlink(elements, () => scheduleNextBlink());
-			} else {
-				performSingleBlink(elements, () => scheduleNextBlink());
-			}
-		}, delay);
-	};
+      // 2% chance for asymmetric "tripping balls" blink
+      if (blinkTypeRandom < 0.02) {
+        performAsymmetricBlink(elements, () => scheduleNextBlink());
+      } else if (blinkTypeRandom < 0.02 + BLINK_CONFIG.DOUBLE_CHANCE) {
+        performDoubleBlink(elements, () => scheduleNextBlink());
+      } else {
+        performSingleBlink(elements, () => scheduleNextBlink());
+      }
+    }, delay);
+  };
 
-	// Start the blink cycle
-	scheduleNextBlink();
+  // Start the blink cycle
+  scheduleNextBlink();
 }
 
 /**
@@ -265,43 +274,43 @@ export function applyRandomBlinkEffect(elements, config = {}) {
  * @param {Object} elements - DOM element references
  */
 export function applyRhythmicBlinkEffect(elements) {
-	const state = get(mascotState);
+  const state = get(mascotState);
 
-	// Only apply when in thinking state
-	if (state.current !== ANIMATION_STATES.THINKING) return;
+  // Only apply when in thinking state
+  if (state.current !== ANIMATION_STATES.THINKING) return;
 
-	const { leftEye, rightEye } = elements;
-	const behavior = ANIMATION_BEHAVIORS[ANIMATION_STATES.THINKING];
+  const { leftEye, rightEye } = elements;
+  const behavior = ANIMATION_BEHAVIORS[ANIMATION_STATES.THINKING];
 
-	// Make sure any previous timers are cleared to avoid double blinking
-	// Clear any blink timeout
-	if (timers.blinkTimeoutId) {
-		clearTimeout(timers.blinkTimeoutId);
-		timers.blinkTimeoutId = null;
-	}
+  // Make sure any previous timers are cleared to avoid double blinking
+  // Clear any blink timeout
+  if (timers.blinkTimeoutId) {
+    clearTimeout(timers.blinkTimeoutId);
+    timers.blinkTimeoutId = null;
+  }
 
-	// Always clear previous thinking interval before creating a new one
-	if (timers.thinkingIntervalId) {
-		clearInterval(timers.thinkingIntervalId);
-		timers.thinkingIntervalId = null;
-	}
+  // Always clear previous thinking interval before creating a new one
+  if (timers.thinkingIntervalId) {
+    clearInterval(timers.thinkingIntervalId);
+    timers.thinkingIntervalId = null;
+  }
 
-	// Set up rhythmic blinking pattern
-	timers.thinkingIntervalId = setInterval(() => {
-		// Close eyes
-		mascotState.setEyesClosed(true);
-		applyEyeTransforms(leftEye, rightEye);
+  // Set up rhythmic blinking pattern
+  timers.thinkingIntervalId = setInterval(() => {
+    // Close eyes
+    mascotState.setEyesClosed(true);
+    applyEyeTransforms(leftEye, rightEye);
 
-		// Open after duration
-		setTimeout(() => {
-			// Only open if still in thinking state
-			const currentState = get(mascotState);
-			if (currentState.current === ANIMATION_STATES.THINKING) {
-				mascotState.setEyesClosed(false);
-				applyEyeTransforms(leftEye, rightEye);
-			}
-		}, behavior.blinkDuration);
-	}, behavior.blinkInterval);
+    // Open after duration
+    setTimeout(() => {
+      // Only open if still in thinking state
+      const currentState = get(mascotState);
+      if (currentState.current === ANIMATION_STATES.THINKING) {
+        mascotState.setEyesClosed(false);
+        applyEyeTransforms(leftEye, rightEye);
+      }
+    }, behavior.blinkDuration);
+  }, behavior.blinkInterval);
 }
 
 /**
@@ -311,35 +320,38 @@ export function applyRhythmicBlinkEffect(elements) {
  * @param {string} previousState - Previous animation state
  */
 export function applyQuickBlinkEffect(elements, previousState) {
-	const state = get(mascotState);
+  const state = get(mascotState);
 
-	// Only apply when transitioning to idle from recording or thinking
-	if (state.current !== ANIMATION_STATES.IDLE) return;
-	if (previousState !== ANIMATION_STATES.RECORDING && previousState !== ANIMATION_STATES.THINKING)
-		return;
+  // Only apply when transitioning to idle from recording or thinking
+  if (state.current !== ANIMATION_STATES.IDLE) return;
+  if (
+    previousState !== ANIMATION_STATES.RECORDING &&
+    previousState !== ANIMATION_STATES.THINKING
+  )
+    return;
 
-	// Clear any existing timeouts
-	if (timers.blinkTimeoutId) {
-		clearTimeout(timers.blinkTimeoutId);
-	}
+  // Clear any existing timeouts
+  if (timers.blinkTimeoutId) {
+    clearTimeout(timers.blinkTimeoutId);
+  }
 
-	// Schedule a quick blink after state transition
-	timers.blinkTimeoutId = setTimeout(() => {
-		const currentState = get(mascotState);
-		if (currentState.current === ANIMATION_STATES.IDLE) {
-			// Add slight randomness to first blink
-			const initialDelay = 100 + Math.floor(Math.random() * 300);
+  // Schedule a quick blink after state transition
+  timers.blinkTimeoutId = setTimeout(() => {
+    const currentState = get(mascotState);
+    if (currentState.current === ANIMATION_STATES.IDLE) {
+      // Add slight randomness to first blink
+      const initialDelay = 100 + Math.floor(Math.random() * 300);
 
-			setTimeout(() => {
-				const verifyState = get(mascotState);
-				if (verifyState.current === ANIMATION_STATES.IDLE) {
-					performSingleBlink(elements, () => {
-						applyRandomBlinkEffect(elements);
-					});
-				}
-			}, initialDelay);
-		}
-	}, 300);
+      setTimeout(() => {
+        const verifyState = get(mascotState);
+        if (verifyState.current === ANIMATION_STATES.IDLE) {
+          performSingleBlink(elements, () => {
+            applyRandomBlinkEffect(elements);
+          });
+        }
+      }, initialDelay);
+    }
+  }, 300);
 }
 
 /**
@@ -349,69 +361,69 @@ export function applyQuickBlinkEffect(elements, previousState) {
  * @param {number} textLength - Length of transcript text
  */
 export function reactToTranscript(elements, textLength = 0) {
-	const { leftEye, rightEye } = elements;
+  const { leftEye, rightEye } = elements;
 
-	// Skip if no elements
-	if (!leftEye || !rightEye) return;
+  // Skip if no elements
+  if (!leftEye || !rightEye) return;
 
-	// Set state to reacting
-	mascotState.setAnimationState(ANIMATION_STATES.REACTING);
+  // Set state to reacting
+  mascotState.setAnimationState(ANIMATION_STATES.REACTING);
 
-	// Handle empty transcripts
-	if (textLength === 0) {
-		// Use setTimeout to avoid potential recursion
-		setTimeout(() => {
-			mascotState.setAnimationState(ANIMATION_STATES.IDLE);
-		}, 0);
-		return;
-	}
+  // Handle empty transcripts
+  if (textLength === 0) {
+    // Use setTimeout to avoid potential recursion
+    setTimeout(() => {
+      mascotState.setAnimationState(ANIMATION_STATES.IDLE);
+    }, 0);
+    return;
+  }
 
-	// Small delay before reacting
-	setTimeout(() => {
-		if (textLength > EYE_CONFIG.TEXT_THRESHOLD) {
-			// For longer transcripts, do a "satisfied" double blink
-			performDoubleBlink(elements, () => {
-				// Use setTimeout to break the call stack
-				setTimeout(() => {
-					mascotState.setAnimationState(ANIMATION_STATES.IDLE);
-				}, 0);
-			});
-		} else {
-			// For short transcripts, just do a single blink
-			performSingleBlink(elements, () => {
-				// Use setTimeout to break the call stack
-				setTimeout(() => {
-					mascotState.setAnimationState(ANIMATION_STATES.IDLE);
-				}, 0);
-			});
-		}
-	}, EYE_CONFIG.REACT_DELAY);
+  // Small delay before reacting
+  setTimeout(() => {
+    if (textLength > EYE_CONFIG.TEXT_THRESHOLD) {
+      // For longer transcripts, do a "satisfied" double blink
+      performDoubleBlink(elements, () => {
+        // Use setTimeout to break the call stack
+        setTimeout(() => {
+          mascotState.setAnimationState(ANIMATION_STATES.IDLE);
+        }, 0);
+      });
+    } else {
+      // For short transcripts, just do a single blink
+      performSingleBlink(elements, () => {
+        // Use setTimeout to break the call stack
+        setTimeout(() => {
+          mascotState.setAnimationState(ANIMATION_STATES.IDLE);
+        }, 0);
+      });
+    }
+  }, EYE_CONFIG.REACT_DELAY);
 }
 
 /**
  * Clean up all blinking resources
  */
 export function cleanupBlinking() {
-	// Specifically clear thinking interval if it exists
-	if (timers.thinkingIntervalId) {
-		clearInterval(timers.thinkingIntervalId);
-		timers.thinkingIntervalId = null;
-	}
+  // Specifically clear thinking interval if it exists
+  if (timers.thinkingIntervalId) {
+    clearInterval(timers.thinkingIntervalId);
+    timers.thinkingIntervalId = null;
+  }
 
-	// Clear all other timers
-	cleanupTimers(timers);
+  // Clear all other timers
+  cleanupTimers(timers);
 }
 
 // Export the blink service
 export default {
-	initBlinking,
-	applyEyeTransforms,
-	performSingleBlink,
-	performDoubleBlink,
-	performAsymmetricBlink,
-	applyRandomBlinkEffect,
-	applyRhythmicBlinkEffect,
-	applyQuickBlinkEffect,
-	reactToTranscript,
-	cleanupBlinking
+  initBlinking,
+  applyEyeTransforms,
+  performSingleBlink,
+  performDoubleBlink,
+  performAsymmetricBlink,
+  applyRandomBlinkEffect,
+  applyRhythmicBlinkEffect,
+  applyQuickBlinkEffect,
+  reactToTranscript,
+  cleanupBlinking,
 };

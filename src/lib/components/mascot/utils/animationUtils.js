@@ -5,7 +5,7 @@
  * and centralize common animation operations.
  */
 
-import { browser } from '$app/environment';
+import { browser } from "$app/environment";
 
 /**
  * Force browser reflow to ensure animations apply correctly
@@ -15,10 +15,10 @@ import { browser } from '$app/environment';
  * @returns {void}
  */
 export function forceReflow(element) {
-	if (!element) return;
+  if (!element) return;
 
-	// Reading offsetWidth causes the browser to recalculate layout
-	void element.offsetWidth;
+  // Reading offsetWidth causes the browser to recalculate layout
+  void element.offsetWidth;
 }
 
 /**
@@ -27,19 +27,19 @@ export function forceReflow(element) {
  * @returns {void}
  */
 export function cleanupTimers(timers) {
-	if (!timers) return;
+  if (!timers) return;
 
-	Object.entries(timers).forEach(([key, timer]) => {
-		if (timer) {
-			if (key.toLowerCase().includes('interval')) {
-				clearInterval(timer);
-			} else {
-				clearTimeout(timer);
-			}
+  Object.entries(timers).forEach(([key, timer]) => {
+    if (timer) {
+      if (key.toLowerCase().includes("interval")) {
+        clearInterval(timer);
+      } else {
+        clearTimeout(timer);
+      }
 
-			timers[key] = null;
-		}
-	});
+      timers[key] = null;
+    }
+  });
 }
 
 /**
@@ -50,25 +50,30 @@ export function cleanupTimers(timers) {
  * @param {boolean} forceRefresh - Whether to force a reflow between class operations
  * @returns {void}
  */
-export function toggleClasses(element, classesToRemove, classToAdd = null, forceRefresh = true) {
-	if (!element) return;
+export function toggleClasses(
+  element,
+  classesToRemove,
+  classToAdd = null,
+  forceRefresh = true,
+) {
+  if (!element) return;
 
-	// Remove classes
-	if (classesToRemove?.length) {
-		classesToRemove.forEach((cls) => {
-			if (cls) element.classList.remove(cls);
-		});
-	}
+  // Remove classes
+  if (classesToRemove?.length) {
+    classesToRemove.forEach((cls) => {
+      if (cls) element.classList.remove(cls);
+    });
+  }
 
-	// Force reflow between removing and adding classes if needed
-	if (forceRefresh) {
-		forceReflow(element);
-	}
+  // Force reflow between removing and adding classes if needed
+  if (forceRefresh) {
+    forceReflow(element);
+  }
 
-	// Add new class if provided
-	if (classToAdd) {
-		element.classList.add(classToAdd);
-	}
+  // Add new class if provided
+  if (classToAdd) {
+    element.classList.add(classToAdd);
+  }
 }
 
 /**
@@ -80,10 +85,10 @@ export function toggleClasses(element, classesToRemove, classToAdd = null, force
  * @returns {number} Random number between min and max
  */
 export function seedRandom(seed, counter, min, max) {
-	// Simple seeded random number generator based on sine function
-	const x = Math.sin(seed + counter) * 10000;
-	const random = x - Math.floor(x);
-	return min + random * (max - min);
+  // Simple seeded random number generator based on sine function
+  const x = Math.sin(seed + counter) * 10000;
+  const random = x - Math.floor(x);
+  return min + random * (max - min);
 }
 
 /**
@@ -91,7 +96,9 @@ export function seedRandom(seed, counter, min, max) {
  * @returns {boolean} True if in browser environment
  */
 export function isBrowser() {
-	return browser && typeof window !== 'undefined' && typeof document !== 'undefined';
+  return (
+    browser && typeof window !== "undefined" && typeof document !== "undefined"
+  );
 }
 
 /**
@@ -101,44 +108,44 @@ export function isBrowser() {
  * @returns {Object} Animation controller with start/stop methods
  */
 export function createAnimationLoop(callback, delay = 0) {
-	let frameId = null;
-	let lastFrameTime = 0;
-	let active = false;
+  let frameId = null;
+  let lastFrameTime = 0;
+  let active = false;
 
-	function animate(timestamp) {
-		if (!active) return;
+  function animate(timestamp) {
+    if (!active) return;
 
-		const elapsed = timestamp - lastFrameTime;
+    const elapsed = timestamp - lastFrameTime;
 
-		if (elapsed >= delay) {
-			lastFrameTime = timestamp;
-			callback(timestamp);
-		}
+    if (elapsed >= delay) {
+      lastFrameTime = timestamp;
+      callback(timestamp);
+    }
 
-		frameId = requestAnimationFrame(animate);
-	}
+    frameId = requestAnimationFrame(animate);
+  }
 
-	return {
-		start() {
-			if (active) return;
-			active = true;
-			lastFrameTime = 0;
-			frameId = requestAnimationFrame(animate);
-		},
+  return {
+    start() {
+      if (active) return;
+      active = true;
+      lastFrameTime = 0;
+      frameId = requestAnimationFrame(animate);
+    },
 
-		stop() {
-			if (!active) return;
-			active = false;
-			if (frameId) {
-				cancelAnimationFrame(frameId);
-				frameId = null;
-			}
-		},
+    stop() {
+      if (!active) return;
+      active = false;
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+        frameId = null;
+      }
+    },
 
-		isActive() {
-			return active;
-		}
-	};
+    isActive() {
+      return active;
+    },
+  };
 }
 
 /**
@@ -147,9 +154,11 @@ export function createAnimationLoop(callback, delay = 0) {
  * @param {*} fallback - Optional fallback value
  * @returns {string} CSS variable value or fallback
  */
-export function getCssVariable(name, fallback = '') {
-	if (!isBrowser()) return fallback;
-	return (
-		getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim() || fallback
-	);
+export function getCssVariable(name, fallback = "") {
+  if (!isBrowser()) return fallback;
+  return (
+    getComputedStyle(document.documentElement)
+      .getPropertyValue(`--${name}`)
+      .trim() || fallback
+  );
 }

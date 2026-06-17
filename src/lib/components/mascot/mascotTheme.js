@@ -68,9 +68,10 @@ export function defineMascotThemes(palettes, opts = {}) {
   if (palettes && Object.keys(palettes).length) {
     PALETTES = { ...palettes };
   }
-  FALLBACK_THEME = opts.fallback && PALETTES[opts.fallback]
-    ? opts.fallback
-    : Object.keys(PALETTES)[0];
+  FALLBACK_THEME =
+    opts.fallback && PALETTES[opts.fallback]
+      ? opts.fallback
+      : Object.keys(PALETTES)[0];
   rebuildGradientDefs(PALETTES);
   // Initialise the current theme to the fallback if not already set.
   theme.update((v) => (v && PALETTES[v] ? v : FALLBACK_THEME));
@@ -230,7 +231,8 @@ export function generateAllThemeCssVariables() {
 
 const cssVariables = derived(
   theme,
-  ($theme) => `${generateThemeCssVariables($theme)}${getGlobalAnimationVariables()}`,
+  ($theme) =>
+    `${generateThemeCssVariables($theme)}${getGlobalAnimationVariables()}`,
 );
 
 /**

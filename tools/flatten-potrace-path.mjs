@@ -21,18 +21,79 @@ function flatten(file) {
   const tx = (x) => Math.round(0.1 * x * 100) / 100;
   const ty = (y) => Math.round((1024 - 0.1 * y) * 100) / 100;
   const t = d.match(/[MmLlHhVvCcSsQqTtAaZz]|-?\d*\.?\d+(?:e-?\d+)?/g);
-  let o = [], i = 0, px = 0, py = 0, sx = 0, sy = 0;
+  let o = [],
+    i = 0,
+    px = 0,
+    py = 0,
+    sx = 0,
+    sy = 0;
   const n = () => parseFloat(t[i++]);
   const num = () => i < t.length && /^-?[\d.]/.test(t[i]);
   while (i < t.length) {
     const c = t[i++];
-    if (c === "M") { px = n(); py = n(); sx = px; sy = py; o.push(`M ${tx(px)} ${ty(py)}`); while (num()) { px = n(); py = n(); o.push(`L ${tx(px)} ${ty(py)}`); } }
-    else if (c === "m") { px += n(); py += n(); sx = px; sy = py; o.push(`M ${tx(px)} ${ty(py)}`); while (num()) { px += n(); py += n(); o.push(`L ${tx(px)} ${ty(py)}`); } }
-    else if (c === "L") { while (num()) { px = n(); py = n(); o.push(`L ${tx(px)} ${ty(py)}`); } }
-    else if (c === "l") { while (num()) { px += n(); py += n(); o.push(`L ${tx(px)} ${ty(py)}`); } }
-    else if (c === "C") { while (num()) { const a = n(), b = n(), cc = n(), d2 = n(), e = n(), f = n(); o.push(`C ${tx(a)} ${ty(b)} ${tx(cc)} ${ty(d2)} ${tx(e)} ${ty(f)}`); px = e; py = f; } }
-    else if (c === "c") { while (num()) { const a = px + n(), b = py + n(), cc = px + n(), d2 = py + n(), e = px + n(), f = py + n(); o.push(`C ${tx(a)} ${ty(b)} ${tx(cc)} ${ty(d2)} ${tx(e)} ${ty(f)}`); px = e; py = f; } }
-    else if (c === "Z" || c === "z") { o.push("Z"); px = sx; py = sy; }
+    if (c === "M") {
+      px = n();
+      py = n();
+      sx = px;
+      sy = py;
+      o.push(`M ${tx(px)} ${ty(py)}`);
+      while (num()) {
+        px = n();
+        py = n();
+        o.push(`L ${tx(px)} ${ty(py)}`);
+      }
+    } else if (c === "m") {
+      px += n();
+      py += n();
+      sx = px;
+      sy = py;
+      o.push(`M ${tx(px)} ${ty(py)}`);
+      while (num()) {
+        px += n();
+        py += n();
+        o.push(`L ${tx(px)} ${ty(py)}`);
+      }
+    } else if (c === "L") {
+      while (num()) {
+        px = n();
+        py = n();
+        o.push(`L ${tx(px)} ${ty(py)}`);
+      }
+    } else if (c === "l") {
+      while (num()) {
+        px += n();
+        py += n();
+        o.push(`L ${tx(px)} ${ty(py)}`);
+      }
+    } else if (c === "C") {
+      while (num()) {
+        const a = n(),
+          b = n(),
+          cc = n(),
+          d2 = n(),
+          e = n(),
+          f = n();
+        o.push(`C ${tx(a)} ${ty(b)} ${tx(cc)} ${ty(d2)} ${tx(e)} ${ty(f)}`);
+        px = e;
+        py = f;
+      }
+    } else if (c === "c") {
+      while (num()) {
+        const a = px + n(),
+          b = py + n(),
+          cc = px + n(),
+          d2 = py + n(),
+          e = px + n(),
+          f = py + n();
+        o.push(`C ${tx(a)} ${ty(b)} ${tx(cc)} ${ty(d2)} ${tx(e)} ${ty(f)}`);
+        px = e;
+        py = f;
+      }
+    } else if (c === "Z" || c === "z") {
+      o.push("Z");
+      px = sx;
+      py = sy;
+    }
   }
   return o.join(" ");
 }
@@ -44,7 +105,11 @@ const bodyRing = outer + " " + inner;
 // Eyes — tweak to fit the art (viewBox 0 0 1024 1024; subject centered ~512,512).
 const ell = (cx, cy, rx, ry) =>
   `M ${cx - rx} ${cy} a ${rx} ${ry} 0 1 0 ${rx * 2} 0 a ${rx} ${ry} 0 1 0 ${-rx * 2} 0 Z`;
-const EYE_Y = 555, EYE_RX = 38, EYE_RY = 52, EYE_LX = 461, EYE_RX_C = 586;
+const EYE_Y = 555,
+  EYE_RX = 38,
+  EYE_RY = 52,
+  EYE_LX = 461,
+  EYE_RX_C = 586;
 const eyeLeft = ell(EYE_LX, EYE_Y, EYE_RX, EYE_RY);
 const eyeRight = ell(EYE_RX_C, EYE_Y, EYE_RX, EYE_RY);
 

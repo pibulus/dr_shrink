@@ -22,7 +22,8 @@ const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
 
 // ── type detection ──
 const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif)$/i;
-const TEXT_RE = /\.(txt|md|markdown|csv|tsv|json|log|svg|xml|yaml|yml|js|ts|css|html?|c|cpp|h|py|rb|go|rs|sh)$/i;
+const TEXT_RE =
+  /\.(txt|md|markdown|csv|tsv|json|log|svg|xml|yaml|yml|js|ts|css|html?|c|cpp|h|py|rb|go|rs|sh)$/i;
 const DOCX_RE = /\.docx$/i;
 const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
 // already-compressed: gzip/zip won't help, and we have no better handler
@@ -73,7 +74,10 @@ function loadImage(file) {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => (URL.revokeObjectURL(url), resolve(img));
-    img.onerror = () => (URL.revokeObjectURL(url), reject(new Error("Could not decode image")));
+    img.onerror = () => (
+      URL.revokeObjectURL(url),
+      reject(new Error("Could not decode image"))
+    );
     img.src = url;
   });
 }
@@ -98,7 +102,9 @@ async function isAnimatedGif(file) {
 async function compressImage(file) {
   // Don't wreck animated GIFs — Canvas can only capture frame 1.
   if (await isAnimatedGif(file)) {
-    throw new Error(`${file.name} is an animated GIF — DrShrink would flatten it. Skipped to keep it intact.`);
+    throw new Error(
+      `${file.name} is an animated GIF — DrShrink would flatten it. Skipped to keep it intact.`,
+    );
   }
 
   const img = await loadImage(file);
@@ -118,8 +124,17 @@ async function compressImage(file) {
   const webp = await canvasToBlob(canvas, "image/webp", IMAGE_QUALITY);
   if (webp) candidates.push({ blob: webp, ext: "webp", type: "image/webp" });
   const srcType = file.type === "image/png" ? "image/png" : "image/jpeg";
-  const reSrc = await canvasToBlob(canvas, srcType, srcType === "image/jpeg" ? IMAGE_QUALITY : undefined);
-  if (reSrc) candidates.push({ blob: reSrc, ext: srcType === "image/png" ? "png" : "jpg", type: srcType });
+  const reSrc = await canvasToBlob(
+    canvas,
+    srcType,
+    srcType === "image/jpeg" ? IMAGE_QUALITY : undefined,
+  );
+  if (reSrc)
+    candidates.push({
+      blob: reSrc,
+      ext: srcType === "image/png" ? "png" : "jpg",
+      type: srcType,
+    });
 
   candidates.sort((a, b) => a.blob.size - b.blob.size);
   const best = candidates[0];
@@ -127,16 +142,32 @@ async function compressImage(file) {
   // Utility guard: if re-encoding barely helps (or grows it), keep the original
   // rather than hand back a degraded file for a meaningless saving.
   if (!best || best.blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
-    return result(file, file.name, file.type || "image/*", file.size, "already efficient — kept original");
+    return result(
+      file,
+      file.name,
+      file.type || "image/*",
+      file.size,
+      "already efficient — kept original",
+    );
   }
-  return result(best.blob, `${baseName(file.name)}.min.${best.ext}`, best.type, file.size);
+  return result(
+    best.blob,
+    `${baseName(file.name)}.min.${best.ext}`,
+    best.type,
+    file.size,
+  );
 }
 
 // ── text/code: gzip → .gz ──
 async function compressText(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const gz = gzipSync(buf, { level: 9 });
-  return result(new Blob([gz], { type: "application/gzip" }), `${file.name}.gz`, "application/gzip", file.size);
+  return result(
+    new Blob([gz], { type: "application/gzip" }),
+    `${file.name}.gz`,
+    "application/gzip",
+    file.size,
+  );
 }
 
 // ── html: strip to plain text ──
@@ -145,7 +176,13 @@ async function compressHtml(file) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const text = (doc.body?.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
   const blob = new Blob([text], { type: "text/plain" });
-  return result(blob, `${baseName(file.name)}.txt`, "text/plain", file.size, "stripped to text");
+  return result(
+    blob,
+    `${baseName(file.name)}.txt`,
+    "text/plain",
+    file.size,
+    "stripped to text",
+  );
 }
 
 // ── docx → plain text (lazy mammoth) ──
@@ -154,7 +191,13 @@ async function compressDocx(file) {
   const arrayBuffer = await file.arrayBuffer();
   const { value } = await mammoth.extractRawText({ arrayBuffer });
   const blob = new Blob([value.trim()], { type: "text/plain" });
-  return result(blob, `${baseName(file.name)}.txt`, "text/plain", file.size, "extracted text");
+  return result(
+    blob,
+    `${baseName(file.name)}.txt`,
+    "text/plain",
+    file.size,
+    "extracted text",
+  );
 }
 
 // ── audio → re-encode smaller (lazy ffmpeg, single-thread core) ──
@@ -180,7 +223,15 @@ async function compressAudio(file, onProgress) {
   const outName = baseName(file.name) + ".min.mp3";
   await ff.writeFile(inName, await fetchFile(file));
   // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
-  await ff.exec(["-i", inName, "-codec:a", "libmp3lame", "-qscale:a", "5", outName]);
+  await ff.exec([
+    "-i",
+    inName,
+    "-codec:a",
+    "libmp3lame",
+    "-qscale:a",
+    "5",
+    outName,
+  ]);
   const data = await ff.readFile(outName);
   const blob = new Blob([data.buffer], { type: "audio/mpeg" });
   await ff.deleteFile(inName).catch(() => {});
@@ -202,9 +253,10 @@ async function zipFiles(files, onProgress) {
       try {
         const r = await compressOne(f);
         // only keep the compressed version if it actually got smaller
-        bytes = r.outputSize < f.size
-          ? new Uint8Array(await r.blob.arrayBuffer())
-          : new Uint8Array(await f.arrayBuffer());
+        bytes =
+          r.outputSize < f.size
+            ? new Uint8Array(await r.blob.arrayBuffer())
+            : new Uint8Array(await f.arrayBuffer());
         name = r.outputSize < f.size ? r.name : f.name;
       } catch {
         bytes = new Uint8Array(await f.arrayBuffer());
@@ -221,7 +273,13 @@ async function zipFiles(files, onProgress) {
   onProgress?.(1);
   const zipped = zipSync(entries, { level: 6 });
   const blob = new Blob([zipped], { type: "application/zip" });
-  return result(blob, `drshrink-${files.length}-files.zip`, "application/zip", inputTotal, `${files.length} files`);
+  return result(
+    blob,
+    `drshrink-${files.length}-files.zip`,
+    "application/zip",
+    inputTotal,
+    `${files.length} files`,
+  );
 }
 
 function file_isHtml(f) {
@@ -234,7 +292,8 @@ function file_isHtml(f) {
 export async function compressOne(file, onProgress) {
   if (isImage(file)) return compressImage(file);
   if (isDocx(file)) return compressDocx(file);
-  if (file.type === "text/html" || /\.html?$/i.test(file.name)) return compressHtml(file);
+  if (file.type === "text/html" || /\.html?$/i.test(file.name))
+    return compressHtml(file);
   if (isText(file)) return compressText(file);
   if (isAudio(file)) return compressAudio(file, onProgress);
   if (isPacked(file)) {

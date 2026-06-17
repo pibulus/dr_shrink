@@ -38,7 +38,11 @@ export function setSupporter(on) {
 // Contributor codes (gifts / your other devices). Placeholder until real
 // codes are issued — accepts a small set for now. Real validation lands with
 // the payment integration.
-const VALID_CODES = new Set(["drshrink-friend", "shrinkydink", "pablo-sent-me"]);
+const VALID_CODES = new Set([
+  "drshrink-friend",
+  "shrinkydink",
+  "pablo-sent-me",
+]);
 
 /** Try to redeem a contributor code. Returns true if it unlocked supporter. */
 export function redeemCode(code) {

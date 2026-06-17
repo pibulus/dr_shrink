@@ -73,17 +73,17 @@ cp -r src/lib/components/mascot /path/to/other-app/src/lib/components/
 
 ## Props
 
-| Prop          | Default     | Notes                                                       |
-| ------------- | ----------- | ---------------------------------------------------------- |
-| `theme`/`externalTheme` | fallback | theme name string, OR a `subscribe`-able store    |
-| `active`      | `false`     | sustained engaged state (was `isRecording`)                |
-| `busy`        | `false`     | transient working state (was `isProcessing`)               |
-| `paused`      | `false`     | pause all animation (app drives blur/offscreen)            |
-| `interactive` | `true`      | render as `<button>` (emits `activate`) vs decorative      |
-| `ariaLabel`   | `"Mascot"`  | accessible label for the button                            |
-| `seed`        | `0`         | daily personality seed                                     |
-| `width`/`height`/`scale`/`opacity` | `100%`/`100%`/`1`/`1` | sizing on the container |
-| `debug`/`debugAnim` | `false` | dev visualisation                                          |
+| Prop                               | Default               | Notes                                                 |
+| ---------------------------------- | --------------------- | ----------------------------------------------------- |
+| `theme`/`externalTheme`            | fallback              | theme name string, OR a `subscribe`-able store        |
+| `active`                           | `false`               | sustained engaged state (was `isRecording`)           |
+| `busy`                             | `false`               | transient working state (was `isProcessing`)          |
+| `paused`                           | `false`               | pause all animation (app drives blur/offscreen)       |
+| `interactive`                      | `true`                | render as `<button>` (emits `activate`) vs decorative |
+| `ariaLabel`                        | `"Mascot"`            | accessible label for the button                       |
+| `seed`                             | `0`                   | daily personality seed                                |
+| `width`/`height`/`scale`/`opacity` | `100%`/`100%`/`1`/`1` | sizing on the container                               |
+| `debug`/`debugAnim`                | `false`               | dev visualisation                                     |
 
 **Events:** `on:activate` (interactive click/Enter/Space).
 
@@ -101,7 +101,7 @@ Required path IDs (single shared viewBox, default `0 0 1024 1024`):
 | `#mascot-body-path`      | outline / silhouette, filled black                |
 | `#mascot-background`     | **same** silhouette, gradient-filled, behind body |
 | `#mascot-eye-left-path`  | left eye (separate path → translates + blinks)    |
-| `#mascot-eye-right-path` | right eye (separate path)                          |
+| `#mascot-eye-right-path` | right eye (separate path)                         |
 
 Eyes MUST be separate paths for tracking + blink. Body + background are the same
 outline (black on top, gradient behind) — that's the signature look.

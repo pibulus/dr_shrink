@@ -1,14 +1,8 @@
 <script>
-  export let title = "DrShrink — drop a file, get a smaller one";
-  export let description =
-    "Drop a file in, get a smaller one out. DrShrink compresses images and files the 80/20 way — no settings, no fuss.";
+  // Title/description/OG live in app.html (single source of truth) — the layout
+  // intentionally does NOT emit a <title> to avoid duplicate head tags.
   export let footerYear = new Date().getFullYear();
 </script>
-
-<svelte:head>
-  <title>{title}</title>
-  <meta name="description" content={description} />
-</svelte:head>
 
 <a class="skip-link" href="#main-content">Skip to content</a>
 

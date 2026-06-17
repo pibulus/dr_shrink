@@ -1,29 +1,41 @@
 // ===================================================================
-// COMPRESS SERVICE — the 80/20 shrink engine
+// COMPRESS SERVICE — the 80/20 "shrink anything" engine
 // ===================================================================
 //
-// Philosophy: no settings, no fuss. Drop a file → get a smaller one.
-// Images use the native Canvas encoder (zero deps, works everywhere). We pick a
-// sensible quality + optional max-dimension and re-encode to whichever of
-// WebP / original-format comes out smallest while still actually being smaller.
+// Philosophy: no settings, no fuss. Drop a file → get a smaller/more-useful one.
+// One file → the obviously-right action for its type. Multiple files → a .zip.
 //
-// Non-image files fall back to "can't shrink this (yet)" — gzip/zip lands later.
+// Eager deps stay tiny (native Canvas + fflate). Heavy converters (mammoth for
+// docx, ffmpeg.wasm for audio) are lazy-imported only when their type is dropped.
 
-/** Quality presets per the 80/20 rule — one good default, no knobs exposed. */
-const QUALITY = 0.82;
-// Cap huge images so a 6000px phone photo doesn't stay 6000px. Most uses don't
-// need more than this; keeps the output genuinely small.
+import { zipSync, gzipSync } from "fflate";
+
+// ── quality knobs (80/20: one good default each, no UI) ──
+const IMAGE_QUALITY = 0.82;
 const MAX_DIMENSION = 2560;
 
-const IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/bmp",
-]);
+// ── type detection ──
+const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif)$/i;
+const TEXT_RE = /\.(txt|md|markdown|csv|tsv|json|log|svg|xml|yaml|yml|js|ts|css|html?|c|cpp|h|py|rb|go|rs|sh)$/i;
+const DOCX_RE = /\.docx$/i;
+const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
+// already-compressed: gzip/zip won't help, and we have no better handler
+const PACKED_RE = /\.(zip|gz|7z|rar|mp4|mov|webm|mkv|pdf|heic)$/i;
 
 export function isImage(file) {
-  return IMAGE_TYPES.has(file.type) || /\.(jpe?g|png|webp|bmp)$/i.test(file.name);
+  return file.type.startsWith("image/") || IMAGE_RE.test(file.name);
+}
+function isText(file) {
+  return file.type.startsWith("text/") || TEXT_RE.test(file.name);
+}
+function isDocx(file) {
+  return DOCX_RE.test(file.name);
+}
+function isAudio(file) {
+  return file.type.startsWith("audio/") || AUDIO_RE.test(file.name);
+}
+function isPacked(file) {
+  return PACKED_RE.test(file.name);
 }
 
 export function formatBytes(n) {
@@ -32,38 +44,38 @@ export function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-/** Load a File/Blob into an HTMLImageElement (via object URL). */
+function result(blob, name, type, inputSize, note) {
+  const outputSize = blob.size;
+  return {
+    blob,
+    name,
+    type,
+    inputSize,
+    outputSize,
+    saved: inputSize - outputSize,
+    ratio: inputSize ? outputSize / inputSize : 1,
+    grew: outputSize >= inputSize,
+    note: note || "",
+  };
+}
+
+const baseName = (n) => n.replace(/\.[^.]+$/, "");
+
+// ── image: re-encode → WebP (native Canvas) ──
 function loadImage(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not decode image"));
-    };
+    img.onload = () => (URL.revokeObjectURL(url), resolve(img));
+    img.onerror = () => (URL.revokeObjectURL(url), reject(new Error("Could not decode image")));
     img.src = url;
   });
 }
-
 function canvasToBlob(canvas, type, quality) {
-  return new Promise((resolve) =>
-    canvas.toBlob((b) => resolve(b), type, quality),
-  );
+  return new Promise((r) => canvas.toBlob((b) => r(b), type, quality));
 }
-
-/**
- * Compress one image file the 80/20 way.
- * @returns {Promise<{blob: Blob, name: string, type: string,
- *   inputSize: number, outputSize: number, saved: number, ratio: number}>}
- */
-export async function compressImage(file) {
+async function compressImage(file) {
   const img = await loadImage(file);
-
-  // Scale down if huge (preserve aspect ratio).
   let { width, height } = img;
   const longest = Math.max(width, height);
   if (longest > MAX_DIMENSION) {
@@ -71,55 +83,146 @@ export async function compressImage(file) {
     width = Math.round(width * k);
     height = Math.round(height * k);
   }
-
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, width, height);
+  canvas.getContext("2d").drawImage(img, 0, 0, width, height);
 
-  // Try WebP (usually smallest). Keep original format as a fallback candidate.
   const candidates = [];
-  const webp = await canvasToBlob(canvas, "image/webp", QUALITY);
-  if (webp) candidates.push({ blob: webp, type: "image/webp", ext: "webp" });
-
-  // Re-encode in the source format too (JPEG for jpeg, else PNG) so we don't
-  // force a format change if WebP somehow loses.
+  const webp = await canvasToBlob(canvas, "image/webp", IMAGE_QUALITY);
+  if (webp) candidates.push({ blob: webp, ext: "webp", type: "image/webp" });
   const srcType = file.type === "image/png" ? "image/png" : "image/jpeg";
-  const srcExt = srcType === "image/png" ? "png" : "jpg";
-  const reSrc = await canvasToBlob(
-    canvas,
-    srcType,
-    srcType === "image/jpeg" ? QUALITY : undefined,
-  );
-  if (reSrc) candidates.push({ blob: reSrc, type: srcType, ext: srcExt });
+  const reSrc = await canvasToBlob(canvas, srcType, srcType === "image/jpeg" ? IMAGE_QUALITY : undefined);
+  if (reSrc) candidates.push({ blob: reSrc, ext: srcType === "image/png" ? "png" : "jpg", type: srcType });
 
-  // Pick the smallest candidate that is actually smaller than the input.
   candidates.sort((a, b) => a.blob.size - b.blob.size);
   const best = candidates[0];
-
-  const inputSize = file.size;
-  const outputSize = best.blob.size;
-  const baseName = file.name.replace(/\.[^.]+$/, "");
-  return {
-    blob: best.blob,
-    name: `${baseName}.min.${best.ext}`,
-    type: best.type,
-    inputSize,
-    outputSize,
-    saved: inputSize - outputSize,
-    ratio: outputSize / inputSize,
-    grew: outputSize >= inputSize,
-  };
+  return result(best.blob, `${baseName(file.name)}.min.${best.ext}`, best.type, file.size);
 }
 
-/** Dispatch any file to the right shrinker. Throws for unsupported types. */
-export async function compress(file) {
+// ── text/code: gzip → .gz ──
+async function compressText(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  const gz = gzipSync(buf, { level: 9 });
+  return result(new Blob([gz], { type: "application/gzip" }), `${file.name}.gz`, "application/gzip", file.size);
+}
+
+// ── html: strip to plain text ──
+async function compressHtml(file) {
+  const html = await file.text();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const text = (doc.body?.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+  const blob = new Blob([text], { type: "text/plain" });
+  return result(blob, `${baseName(file.name)}.txt`, "text/plain", file.size, "stripped to text");
+}
+
+// ── docx → plain text (lazy mammoth) ──
+async function compressDocx(file) {
+  const mammoth = await import("mammoth");
+  const arrayBuffer = await file.arrayBuffer();
+  const { value } = await mammoth.extractRawText({ arrayBuffer });
+  const blob = new Blob([value.trim()], { type: "text/plain" });
+  return result(blob, `${baseName(file.name)}.txt`, "text/plain", file.size, "extracted text");
+}
+
+// ── audio → re-encode smaller (lazy ffmpeg, single-thread core) ──
+let _ffmpeg = null;
+async function getFFmpeg(onProgress) {
+  if (_ffmpeg) return _ffmpeg;
+  const { FFmpeg } = await import("@ffmpeg/ffmpeg");
+  const { toBlobURL } = await import("@ffmpeg/util");
+  const ff = new FFmpeg();
+  if (onProgress) ff.on("progress", ({ progress }) => onProgress(progress));
+  const base = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+  await ff.load({
+    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
+    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+  });
+  _ffmpeg = ff;
+  return ff;
+}
+async function compressAudio(file, onProgress) {
+  const ff = await getFFmpeg(onProgress);
+  const { fetchFile } = await import("@ffmpeg/util");
+  const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
+  const outName = baseName(file.name) + ".min.mp3";
+  await ff.writeFile(inName, await fetchFile(file));
+  // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
+  await ff.exec(["-i", inName, "-codec:a", "libmp3lame", "-qscale:a", "5", outName]);
+  const data = await ff.readFile(outName);
+  const blob = new Blob([data.buffer], { type: "audio/mpeg" });
+  await ff.deleteFile(inName).catch(() => {});
+  await ff.deleteFile(outName).catch(() => {});
+  return result(blob, outName, "audio/mpeg", file.size, "re-encoded mp3");
+}
+
+// ── batch → single .zip (shrink each shrinkable file first, then bundle) ──
+async function zipFiles(files, onProgress) {
+  const entries = {};
+  let inputTotal = 0;
+  let i = 0;
+  for (const f of files) {
+    inputTotal += f.size;
+    onProgress?.(i / files.length);
+    let bytes, name;
+    // Try to shrink images/text/docx individually before bundling; otherwise store raw.
+    if (isImage(f) || isText(f) || isDocx(f) || file_isHtml(f)) {
+      try {
+        const r = await compressOne(f);
+        // only keep the compressed version if it actually got smaller
+        bytes = r.outputSize < f.size
+          ? new Uint8Array(await r.blob.arrayBuffer())
+          : new Uint8Array(await f.arrayBuffer());
+        name = r.outputSize < f.size ? r.name : f.name;
+      } catch {
+        bytes = new Uint8Array(await f.arrayBuffer());
+        name = f.name;
+      }
+    } else {
+      bytes = new Uint8Array(await f.arrayBuffer());
+      name = f.name;
+    }
+    // avoid name collisions in the zip
+    entries[entries[name] ? `${i}_${name}` : name] = bytes;
+    i++;
+  }
+  onProgress?.(1);
+  const zipped = zipSync(entries, { level: 6 });
+  const blob = new Blob([zipped], { type: "application/zip" });
+  return result(blob, `drshrink-${files.length}-files.zip`, "application/zip", inputTotal, `${files.length} files`);
+}
+
+function file_isHtml(f) {
+  return f.type === "text/html" || /\.html?$/i.test(f.name);
+}
+
+/**
+ * Compress one file by its type. `onProgress(0..1)` is used for slow ops (audio).
+ */
+export async function compressOne(file, onProgress) {
   if (isImage(file)) return compressImage(file);
-  throw new Error(`Can't shrink ${file.type || "this file"} yet — images only for now.`);
+  if (isDocx(file)) return compressDocx(file);
+  if (file.type === "text/html" || /\.html?$/i.test(file.name)) return compressHtml(file);
+  if (isText(file)) return compressText(file);
+  if (isAudio(file)) return compressAudio(file, onProgress);
+  if (isPacked(file)) {
+    throw new Error(`${file.name} is already compressed — nothing to shrink.`);
+  }
+  // unknown → gzip fallback (the universal "any file → smaller" net)
+  return compressText(file);
 }
 
-/** Trigger a browser download of a Blob. */
+/**
+ * Top-level entry. Single file → its handler. Multiple files → one .zip.
+ * Returns an array of results.
+ */
+export async function compress(fileList, { onProgress } = {}) {
+  const files = [...fileList];
+  if (files.length === 0) return [];
+  if (files.length > 1) return [await zipFiles(files, onProgress)];
+  return [await compressOne(files[0], onProgress)];
+}
+
 export function downloadBlob(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

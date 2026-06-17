@@ -14,8 +14,9 @@
   let mascot;
   let dragOver = false;
   let busy = false;
+  let busyLabel = "Shrinking…";
   let error = "";
-  /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew}>} */
+  /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
 
   async function handleFiles(fileList) {
@@ -23,19 +24,23 @@
     if (!files.length) return;
     error = "";
     busy = true;
+    busyLabel = files.length > 1 ? "Zipping…" : "Shrinking…";
     mascot?.startThinking();
 
-    for (const file of files) {
-      try {
-        const r = await compress(file);
+    try {
+      const out = await compress(files, {
+        onProgress: (p) => (busyLabel = `Crunching… ${Math.round(p * 100)}%`),
+      });
+      for (const r of out) {
         results = [r, ...results];
-        mascot?.react(Math.round(r.saved / 1024));
-      } catch (e) {
-        error = e.message;
+        mascot?.react(Math.round(Math.max(0, r.saved) / 1024));
       }
+    } catch (e) {
+      error = e.message;
     }
 
     busy = false;
+    busyLabel = "Shrinking…";
     mascot?.stopThinking();
   }
 
@@ -82,16 +87,15 @@
       <input
         id="file-input"
         type="file"
-        accept="image/*"
         multiple
         class="sr-only"
         on:change={onPick}
       />
       {#if busy}
-        <span class="drop-text">Shrinking…</span>
+        <span class="drop-text">{busyLabel}</span>
       {:else}
-        <span class="drop-text">Drop images here</span>
-        <span class="drop-sub">or click to choose · images for now</span>
+        <span class="drop-text">Drop anything here</span>
+        <span class="drop-sub">images · text · docs · audio · batches → zip</span>
       {/if}
     </label>
 
@@ -119,6 +123,9 @@
                     </span>
                   {:else}
                     <span class="text-gray-400">already tiny</span>
+                  {/if}
+                  {#if r.note}
+                    <span class="text-gray-400">· {r.note}</span>
                   {/if}
                 </p>
               </div>

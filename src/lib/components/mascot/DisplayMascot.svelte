@@ -1,0 +1,231 @@
+<script>
+	import './mascot-animations.css';
+	import mascotPathsUrl from './mascot-paths.svg?url';
+	import { onMount, onDestroy } from 'svelte';
+	import { GRADIENT_DEFS } from './gradients.js';
+
+	// Direct theme prop - no store subscription
+	export let theme = 'peach';
+	export let size = '40px';
+	export let width = null;
+	export let height = null;
+	export let seed = Math.floor(Math.random() * 10000);
+	export let disableJsAnimation = false;
+
+	const validThemes = new Set(['peach', 'mint', 'bubblegum', 'rainbow']);
+
+	// DOM references
+	let mascotSvg;
+	let leftEye;
+	let rightEye;
+	let eyesClosed = false;
+	let componentsLoaded = false;
+
+	// Simple blink animation with random timing based on seed
+	let blinkTimeoutId;
+	let openEyesTimeoutId;
+	let blinkCounter = 0;
+
+	$: resolvedTheme = validThemes.has(theme) ? theme : 'peach';
+	$: resolvedWidth = width || size;
+	$: resolvedHeight = height || size;
+	$: gradientPrefix = `display-mascot-${String(seed).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+	$: resolvedGradientId = getInstanceGradientId(resolvedTheme);
+
+	function getInstanceGradientId(themeName) {
+		return `${gradientPrefix}-${themeName}-gradient`;
+	}
+
+	// Seeded random function
+	function seedRandom(min, max) {
+		const x = Math.sin(seed + blinkCounter++) * 10000;
+		const random = x - Math.floor(x);
+		return min + random * (max - min);
+	}
+
+	// Simplified blink scheduler
+	function scheduleBlink() {
+		clearTimeout(blinkTimeoutId);
+
+		// Random delay with seed for unique timing per mascot
+		const delay = 4000 + seedRandom(0, 1) * 5000;
+
+		blinkTimeoutId = setTimeout(() => {
+			// Single blink animation
+			eyesClosed = true;
+			updateEyes();
+
+			// Open eyes after short delay
+			openEyesTimeoutId = setTimeout(() => {
+				eyesClosed = false;
+				updateEyes();
+
+				// Schedule next blink
+				scheduleBlink();
+			}, 300);
+		}, delay);
+	}
+
+	// Apply eye state
+	function updateEyes() {
+		if (!leftEye || !rightEye) return;
+
+		if (eyesClosed) {
+			leftEye.style.transform = `scaleY(0.05)`;
+			rightEye.style.transform = `scaleY(0.05)`;
+		} else {
+			leftEye.style.transform = `translate(0, 0)`;
+			rightEye.style.transform = `translate(0, 0)`;
+		}
+	}
+
+	// Lifecycle
+	onMount(() => {
+		if (!disableJsAnimation) {
+			scheduleBlink();
+		}
+
+		// Mark component as loaded
+		componentsLoaded = true;
+	});
+
+	onDestroy(() => {
+		clearTimeout(blinkTimeoutId);
+		clearTimeout(openEyesTimeoutId);
+	});
+
+	// Reactive declaration for mascot ready state
+	$: isMascotReady = componentsLoaded && !!mascotSvg && !!resolvedTheme;
+</script>
+
+<div class="display-mascot" style="width:{resolvedWidth}; height:{resolvedHeight};">
+	<div bind:this={mascotSvg} class="mascot-container theme-{resolvedTheme}">
+		<svg
+			viewBox="0 0 1024 1024"
+			xmlns="http://www.w3.org/2000/svg"
+			xmlns:xlink="http://www.w3.org/1999/xlink"
+			class="mascot-svg theme-{resolvedTheme}"
+			class:visible={isMascotReady}
+			aria-hidden="true"
+			focusable="false"
+		>
+			<defs>
+				{#each Object.entries(GRADIENT_DEFS) as [themeName, gradient]}
+					<linearGradient
+						id={getInstanceGradientId(themeName)}
+						x1={gradient.x1}
+						y1={gradient.y1}
+						x2={gradient.x2}
+						y2={gradient.y2}
+					>
+						{#each gradient.stops as stop}
+							<stop offset={stop.offset} stop-color={stop.color} />
+						{/each}
+					</linearGradient>
+				{/each}
+			</defs>
+
+			<g class="mascot-layer mascot-bg">
+				<use
+					xlink:href={mascotPathsUrl}
+					href={mascotPathsUrl + '#mascot-background'}
+					class="mascot-shape"
+					fill="url(#{resolvedGradientId})"
+				/>
+			</g>
+
+			<g class="mascot-layer mascot-outline">
+				<use
+					xlink:href={mascotPathsUrl}
+					href={mascotPathsUrl + '#mascot-body-path'}
+					class="mascot-outline-path"
+					fill="#000000"
+					opacity="1"
+				/>
+			</g>
+
+			<g class="mascot-layer mascot-eyes">
+				<use
+					bind:this={leftEye}
+					xlink:href={mascotPathsUrl}
+					href={mascotPathsUrl + '#mascot-eye-left-path'}
+					class="mascot-eye mascot-eye-left"
+					fill="#000000"
+				/>
+				<use
+					bind:this={rightEye}
+					xlink:href={mascotPathsUrl}
+					href={mascotPathsUrl + '#mascot-eye-right-path'}
+					class="mascot-eye mascot-eye-right"
+					fill="#000000"
+				/>
+			</g>
+		</svg>
+	</div>
+</div>
+
+<style>
+	.display-mascot {
+		position: relative;
+		display: block;
+		flex: 0 0 auto;
+		overflow: visible;
+		line-height: 0;
+	}
+
+	.mascot-container {
+		position: relative;
+		width: 100%;
+		height: 100%;
+		min-width: 0;
+		min-height: 0;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		overflow: visible;
+		background: transparent;
+	}
+
+	.mascot-svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+		max-width: 100%;
+		max-height: 100%;
+		flex: 0 0 auto;
+		overflow: visible;
+	}
+
+	.mascot-layer {
+		transform-origin: center center;
+	}
+
+	/* Override default theme glows for DisplayMascot to be more subtle */
+	:global(.display-mascot .mascot-container.theme-peach) {
+		filter: drop-shadow(0 0 2px rgba(255, 120, 160, 0.2));
+		will-change: filter;
+		transform: translateZ(0);
+		backface-visibility: hidden;
+	}
+
+	:global(.display-mascot .mascot-container.theme-mint) {
+		filter: drop-shadow(0 0 2px rgba(80, 235, 170, 0.2));
+		will-change: filter;
+		transform: translateZ(0);
+		backface-visibility: hidden;
+	}
+
+	:global(.display-mascot .mascot-container.theme-bubblegum) {
+		filter: drop-shadow(0 0 2px rgba(200, 140, 255, 0.2));
+		will-change: filter;
+		transform: translateZ(0);
+		backface-visibility: hidden;
+	}
+
+	:global(.display-mascot .mascot-container.theme-rainbow) {
+		filter: drop-shadow(0 0 2px rgba(255, 170, 190, 0.2));
+		will-change: filter;
+		transform: translateZ(0);
+		backface-visibility: hidden;
+	}
+</style>

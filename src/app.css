@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ds-bg: #f3e8ff;
+  --ds-bg-2: #fce7f3;
+  --ds-ink: #2a2233;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  color: var(--ds-ink);
+  background:
+    radial-gradient(circle at 20% 10%, var(--ds-bg-2), transparent 55%),
+    radial-gradient(circle at 80% 90%, var(--ds-bg-2), transparent 55%),
+    var(--ds-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

@@ -399,6 +399,46 @@
     height: clamp(180px, 42vw, 256px);
     transform-origin: center bottom;
     will-change: transform;
+    /* breathe more — the portable engine reads these float vars. A bigger,
+       slower drift makes the doctor feel alive (hovering / gently breathing). */
+    --mascot-float-y: -7px;
+    --mascot-float-x: 1.5px;
+    --mascot-float-tilt: 0.9deg;
+    --mascot-float-scale: 1.012;
+    --mascot-float-speed: 4.6s;
+  }
+
+  /* GLOW — DrShrink themes aren't the portable kit's theme names, so the kit's
+     built-in glow doesn't fire here. Drive it ourselves off the accent color,
+     on hover and while crunching. */
+  .mascot-slot :global(.mascot-svg) {
+    transition: filter 0.35s ease;
+  }
+  .mascot-slot:hover :global(.mascot-svg),
+  .mascot-slot.squeezing :global(.mascot-svg) {
+    filter: drop-shadow(
+        0 0 16px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.55)
+      )
+      drop-shadow(0 0 30px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.32));
+  }
+  /* while crunching, let the glow gently pulse to feel "at work" */
+  .mascot-slot.squeezing :global(.mascot-svg) {
+    animation: dr-glow-pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes dr-glow-pulse {
+    0%,
+    100% {
+      filter: drop-shadow(
+          0 0 12px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.4)
+        )
+        drop-shadow(0 0 22px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.22));
+    }
+    50% {
+      filter: drop-shadow(
+          0 0 22px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7)
+        )
+        drop-shadow(0 0 38px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.4));
+    }
   }
 
   /* little speech bubble that pops over the doctor's head (tickle / 🤯) */
@@ -489,6 +529,9 @@
     .dl:active,
     .dl:hover {
       transform: none;
+    }
+    .mascot-slot.squeezing :global(.mascot-svg) {
+      animation: none;
     }
   }
 

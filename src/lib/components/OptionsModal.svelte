@@ -4,25 +4,32 @@
   import { THEME_LIST } from "$lib/constants.js";
   import { muted, toggleMuted } from "$lib/services/soundService.js";
   import { history, clearHistory } from "$lib/services/historyService.js";
+  import ThemeMascot from "./ThemeMascot.svelte";
 
   export let open = false;
 </script>
 
 <Modal {open} title="Options" icon="🎛️" on:close>
   <div class="rows">
-    <!-- Theme -->
+    <!-- Theme — pick the doctor's vibe (mini-brain per theme, à la TalkType) -->
     <div class="row col">
-      <span class="label">Theme</span>
-      <div class="dots" role="group" aria-label="Theme">
+      <span class="label">Vibe</span>
+      <div class="vibes" role="group" aria-label="Theme">
         {#each THEME_LIST as t}
           <button
-            class="dot dot-{t.id}"
+            class="vibe"
             class:on={$theme === t.id}
             title={t.label}
-            aria-label={t.label}
+            aria-label="{t.label} vibe"
             aria-pressed={$theme === t.id}
             on:click={() => applyTheme(t.id)}
-          ></button>
+          >
+            <span class="vibe-art"><ThemeMascot theme={t.id} size="40px" /></span>
+            <span class="vibe-name">{t.label}</span>
+            {#if $theme === t.id}
+              <span class="vibe-check" aria-hidden="true">✓</span>
+            {/if}
+          </button>
         {/each}
       </div>
     </div>
@@ -63,18 +70,69 @@
   .label { font-weight: 700; color: var(--ds-ink, #1f2937); }
   .label em { font-style: normal; color: #9b9199; font-weight: 500; }
 
-  .dots { display: flex; gap: 0.6rem; }
-  .dot {
-    width: 26px; height: 26px; border-radius: 999px;
-    border: 3px solid rgba(0, 0, 0, 0.12); cursor: pointer;
-    transition: transform 0.12s ease, border-color 0.12s ease;
+  .vibes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    width: 100%;
   }
-  .dot:hover { transform: scale(1.12); }
-  .dot.on { border-color: rgba(0, 0, 0, 0.55); transform: scale(1.12); }
-  .dot-vibrant { background: linear-gradient(135deg, #9333ea, #f472b6); }
-  .dot-warm { background: linear-gradient(135deg, #ff7a45, #ffd24c); }
-  .dot-cool { background: linear-gradient(135deg, #0fb5c9, #5fe07a); }
-  .dot-minimal { background: linear-gradient(135deg, #52525b, #a1a1aa); }
+  .vibe {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.55rem 0.25rem 0.45rem;
+    border-radius: 14px;
+    border: 2px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    transition:
+      transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .vibe:hover {
+    transform: translateY(-2px);
+    border-color: rgba(0, 0, 0, 0.16);
+  }
+  .vibe.on {
+    border-color: var(--ds-primary-color, #9333ea);
+    box-shadow: 0 0 0 2px
+      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.35);
+  }
+  .vibe-art {
+    transition: transform 0.2s ease;
+    line-height: 0;
+  }
+  .vibe:hover .vibe-art { transform: scale(1.08); }
+  .vibe-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ds-ink, #1f2937);
+  }
+  .vibe-check {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--ds-primary-color, #9333ea);
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .vibe,
+    .vibe-art { transition: none; }
+    .vibe:hover { transform: none; }
+    .vibe:hover .vibe-art { transform: none; }
+  }
 
   .switch {
     width: 46px; height: 26px; border-radius: 999px;

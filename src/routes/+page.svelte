@@ -1,12 +1,17 @@
 <script>
-  import { Mascot, getAccessoryNames } from "$lib/components/mascot";
+  import {
+    Mascot,
+    getAccessoryNames,
+    getCharacterNames,
+  } from "$lib/components/mascot";
 
   let mascot;
   let accessory = "none";
+  let character = "brain";
   const hats = getAccessoryNames();
+  const characters = getCharacterNames();
 
   function handleActivate() {
-    // Placeholder: pulse the mascot. Real compression flow lands next phase.
     mascot?.pulse();
   }
 </script>
@@ -21,8 +26,9 @@
   <div class="mascot-slot">
     <Mascot
       bind:this={mascot}
-      theme="purple"
+      {character}
       {accessory}
+      theme="purple"
       ariaLabel="DrShrink — compress a file"
       on:activate={handleActivate}
     />
@@ -35,31 +41,40 @@
     Drop a file in, get a smaller one out. No settings, no fuss.
   </p>
 
-  <!-- Dev: hat picker (à la Malibu Stacey's new hat) -->
-  <div class="flex flex-wrap justify-center gap-2">
-    {#each hats as h}
-      <button
-        class="rounded-full border-2 border-black/20 px-3 py-1 text-sm font-bold capitalize transition"
-        class:bg-primary={accessory === h}
-        class:text-white={accessory === h}
-        on:click={() => (accessory = h)}
-      >
-        {h.replace("-", " ")}
-      </button>
-    {/each}
+  <!-- Icon factory playground -->
+  <div class="flex flex-col items-center gap-3">
+    <div class="flex flex-wrap justify-center gap-2">
+      <span class="self-center text-xs font-bold uppercase text-gray-400">Character</span>
+      {#each characters as c}
+        <button
+          class="rounded-full border-2 border-black/20 px-3 py-1 text-sm font-bold capitalize"
+          class:bg-accent={character === c}
+          class:text-white={character === c}
+          on:click={() => (character = c)}
+        >
+          {c}
+        </button>
+      {/each}
+    </div>
+    <div class="flex flex-wrap justify-center gap-2">
+      <span class="self-center text-xs font-bold uppercase text-gray-400">Hat</span>
+      {#each hats as h}
+        <button
+          class="rounded-full border-2 border-black/20 px-3 py-1 text-sm font-bold capitalize"
+          class:bg-primary={accessory === h}
+          class:text-white={accessory === h}
+          on:click={() => (accessory = h)}
+        >
+          {h.replace("-", " ")}
+        </button>
+      {/each}
+    </div>
   </div>
 </main>
 
 <style>
   .mascot-slot {
-    width: 160px;
-    height: 160px;
-  }
-
-  @media (min-width: 768px) {
-    .mascot-slot {
-      width: 200px;
-      height: 200px;
-    }
+    width: 200px;
+    height: 200px;
   }
 </style>

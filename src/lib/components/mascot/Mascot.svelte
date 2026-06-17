@@ -3,7 +3,6 @@
 	import { browser } from '$app/environment';
 
 	import './mascot-animations.css';
-	import mascotPathsUrl from './mascot-paths.svg?url';
 	import { ANIMATION_STATES, CSS_CLASSES, PULSE_CONFIG, EYE_CONFIG } from './animationConfig.js';
 
 	import { mascotState, theme as localTheme } from './stores/index.js';
@@ -15,6 +14,7 @@
 	import { getGradientId } from './gradients.js';
 	import { buildMascotPersonality } from './personality.js';
 	import { getAccessory } from './accessories.js';
+	import { getCharacterUrl } from './characters.js';
 
 	const dispatch = createEventDispatcher();
 
@@ -40,6 +40,8 @@
 	export let accessory = 'none';
 	// Per-mascot vertical nudge for the accessory (1024-space units).
 	export let accessoryOffsetY = 0;
+	// Which character art to render (art/<name>.svg). Default: first available.
+	export let character = 'brain';
 	const mascotInstanceId = Symbol('mascot-instance');
 	let mascotSvg;
 	let spinPivotElement;
@@ -64,6 +66,7 @@
 	$: animationClass = animationsEnabled ? 'animations-enabled' : 'animations-paused';
 	$: gradientId = getGradientId(currentTheme);
 	$: accessorySvg = getAccessory(accessory).svg;
+	$: mascotPathsUrl = getCharacterUrl(character);
 	$: specialAnimationClass =
 		$mascotState.current === ANIMATION_STATES.EASTER_EGG && $mascotState.specialAnimation
 			? `mascot-special-${$mascotState.specialAnimation}`

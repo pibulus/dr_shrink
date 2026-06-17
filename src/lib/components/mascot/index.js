@@ -25,4 +25,7 @@ export {
 // Accessory ("new hat") wardrobe.
 export { ACCESSORIES, getAccessory, getAccessoryNames } from "./accessories.js";
 
+// Character roster (swappable art).
+export { CHARACTERS, getCharacterNames, getCharacterUrl } from "./characters.js";
+
 export default Mascot;

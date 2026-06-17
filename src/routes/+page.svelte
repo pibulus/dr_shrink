@@ -1,9 +1,11 @@
 <script>
   import { Mascot } from "$lib/components/mascot";
+  import PageLayout from "$lib/components/layout/PageLayout.svelte";
+  import AnimatedTitle from "$lib/components/AnimatedTitle.svelte";
+  import FooterComponent from "$lib/components/FooterComponent.svelte";
   import {
     compress,
     formatBytes,
-    isImage,
     downloadBlob,
   } from "$lib/services/compressService.js";
 
@@ -25,7 +27,6 @@
       try {
         const r = await compress(file);
         results = [r, ...results];
-        // Mascot reacts proportionally to how much we saved (kb).
         mascot?.react(Math.round(r.saved / 1024));
       } catch (e) {
         error = e.message;
@@ -50,94 +51,89 @@
   $: totalSaved = results.reduce((a, r) => a + Math.max(0, r.saved), 0);
 </script>
 
-<svelte:head>
-  <title>DrShrink — drop a file, get a smaller one</title>
-</svelte:head>
+<PageLayout>
+  <div class="flex w-full flex-col items-center gap-5">
+    <div class="mascot-slot">
+      <Mascot
+        bind:this={mascot}
+        character="brain"
+        accessory="head-mirror"
+        theme="purple"
+        {busy}
+        ariaLabel="DrShrink — choose a file"
+        on:activate={() => document.getElementById("file-input")?.click()}
+      />
+    </div>
 
-<main class="mx-auto flex min-h-dvh max-w-xl flex-col items-center gap-6 px-6 py-12">
-  <div class="mascot-slot">
-    <Mascot
-      bind:this={mascot}
-      character="brain"
-      accessory="head-mirror"
-      theme="purple"
-      {busy}
-      ariaLabel="DrShrink"
-      on:activate={() => document.getElementById("file-input")?.click()}
-    />
+    <AnimatedTitle />
+
+    <!-- Drop zone -->
+    <label
+      for="file-input"
+      class="drop"
+      class:drop-over={dragOver}
+      class:drop-busy={busy}
+      on:dragover|preventDefault={() => (dragOver = true)}
+      on:dragleave={() => (dragOver = false)}
+      on:drop={onDrop}
+    >
+      <input
+        id="file-input"
+        type="file"
+        accept="image/*"
+        multiple
+        class="sr-only"
+        on:change={onPick}
+      />
+      {#if busy}
+        <span class="drop-text">Shrinking…</span>
+      {:else}
+        <span class="drop-text">Drop images here</span>
+        <span class="drop-sub">or click to choose · images for now</span>
+      {/if}
+    </label>
+
+    {#if error}
+      <p class="rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600">
+        {error}
+      </p>
+    {/if}
+
+    {#if results.length}
+      <div class="w-full">
+        <p class="mb-2 text-center text-sm font-bold text-accent">
+          Saved {formatBytes(totalSaved)} total 🎉
+        </p>
+        <ul class="flex flex-col gap-2">
+          {#each results as r}
+            <li class="result">
+              <div class="min-w-0 flex-1">
+                <p class="truncate font-bold">{r.name}</p>
+                <p class="text-sm text-gray-500">
+                  {formatBytes(r.inputSize)} → {formatBytes(r.outputSize)}
+                  {#if !r.grew}
+                    <span class="font-bold text-green-600">
+                      −{Math.round((1 - r.ratio) * 100)}%
+                    </span>
+                  {:else}
+                    <span class="text-gray-400">already tiny</span>
+                  {/if}
+                </p>
+              </div>
+              <button class="dl" on:click={() => downloadBlob(r.blob, r.name)}>
+                Download
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </div>
+    {/if}
   </div>
 
-  <header class="text-center">
-    <h1 class="text-5xl font-black tracking-tight text-primary sm:text-6xl">
-      DrShrink
-    </h1>
-    <p class="mt-2 text-lg text-gray-600">
-      Drop a file in, get a smaller one out. No settings, no fuss.
-    </p>
-  </header>
-
-  <!-- Drop zone -->
-  <label
-    for="file-input"
-    class="drop"
-    class:drop-over={dragOver}
-    class:drop-busy={busy}
-    on:dragover|preventDefault={() => (dragOver = true)}
-    on:dragleave={() => (dragOver = false)}
-    on:drop={onDrop}
-  >
-    <input
-      id="file-input"
-      type="file"
-      accept="image/*"
-      multiple
-      class="sr-only"
-      on:change={onPick}
-    />
-    {#if busy}
-      <span class="drop-text">Shrinking…</span>
-    {:else}
-      <span class="drop-text">Drop images here</span>
-      <span class="drop-sub">or click to choose · images for now</span>
-    {/if}
-  </label>
-
-  {#if error}
-    <p class="rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600">
-      {error}
-    </p>
-  {/if}
-
-  {#if results.length}
-    <div class="w-full">
-      <p class="mb-2 text-center text-sm font-bold text-accent">
-        Saved {formatBytes(totalSaved)} total 🎉
-      </p>
-      <ul class="flex flex-col gap-2">
-        {#each results as r}
-          <li class="result">
-            <div class="min-w-0 flex-1">
-              <p class="truncate font-bold">{r.name}</p>
-              <p class="text-sm text-gray-500">
-                {formatBytes(r.inputSize)} → {formatBytes(r.outputSize)}
-                {#if !r.grew}
-                  <span class="font-bold text-green-600">
-                    −{Math.round((1 - r.ratio) * 100)}%
-                  </span>
-                {:else}
-                  <span class="text-gray-400">already tiny</span>
-                {/if}
-              </p>
-            </div>
-            <button class="dl" on:click={() => downloadBlob(r.blob, r.name)}>
-              Download
-            </button>
-          </li>
-        {/each}
-      </ul>
-    </div>
-  {/if}
-</main>
+  <svelte:fragment slot="footer-buttons">
+    <FooterComponent />
+  </svelte:fragment>
+</PageLayout>
 
 <style>
   .mascot-slot {
@@ -147,7 +143,7 @@
 
   .drop {
     width: 100%;
-    min-height: 180px;
+    min-height: 168px;
     display: flex;
     flex-direction: column;
     align-items: center;

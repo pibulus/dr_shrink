@@ -12,6 +12,8 @@
   import { THEME_LIST } from "$lib/constants.js";
   import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
   import UnlockModal from "$lib/components/UnlockModal.svelte";
+  import { history, recordHistory, clearHistory } from "$lib/services/historyService.js";
+  import { soundDrop, soundDone, soundError, muted, toggleMuted } from "$lib/services/soundService.js";
 
   let mascot;
   let dragOver = false;
@@ -48,10 +50,12 @@
     const gate = checkDrop(files, $isSupporter);
     if (!gate.ok) {
       error = gate.reason;
+      soundError();
       if (gate.gated) showUnlock = true;
       return;
     }
 
+    soundDrop();
     phase = "busy";
     progress = 0;
     determinate = false;
@@ -69,14 +73,17 @@
       let saved = 0;
       for (const r of out) {
         results = [r, ...results];
+        recordHistory(r);
         saved += Math.max(0, r.saved);
         mascot?.react(Math.round(Math.max(0, r.saved) / 1024));
       }
       progress = 1;
       setToast(saved > 0 ? `Saved ${formatBytes(saved)} 🎉` : "Done ✨");
+      soundDone();
     } catch (e) {
       error = e.message;
       phase = "idle";
+      soundError();
     }
 
     mascot?.stopThinking();
@@ -192,18 +199,51 @@
       </div>
     {/if}
 
-    <!-- Theme switcher (the one fun option) -->
-    <div class="themes" role="group" aria-label="Theme">
-      {#each THEME_LIST as t}
-        <button
-          class="theme-dot theme-{t.id}"
-          class:on={$theme === t.id}
-          title={t.label}
-          aria-label={t.label}
-          aria-pressed={$theme === t.id}
-          on:click={() => applyTheme(t.id)}
-        ></button>
-      {/each}
+    <!-- History — recent jobs (stats persist across reloads; files don't) -->
+    {#if $history.length}
+      <details class="history">
+        <summary>
+          <span>Recent ({$history.length})</span>
+          <button
+            class="clear"
+            on:click|preventDefault|stopPropagation={clearHistory}
+          >clear</button>
+        </summary>
+        <ul>
+          {#each $history as h}
+            <li>
+              <span class="h-name" title={h.name}>{h.name}</span>
+              <span class="h-stat">
+                {formatBytes(h.inputSize)} → {formatBytes(h.outputSize)}
+                {#if !h.grew}<span class="h-pct">−{h.pct}%</span>{/if}
+              </span>
+            </li>
+          {/each}
+        </ul>
+      </details>
+    {/if}
+
+    <!-- Theme switcher + sound toggle (the fun options) -->
+    <div class="controls">
+      <div class="themes" role="group" aria-label="Theme">
+        {#each THEME_LIST as t}
+          <button
+            class="theme-dot theme-{t.id}"
+            class:on={$theme === t.id}
+            title={t.label}
+            aria-label={t.label}
+            aria-pressed={$theme === t.id}
+            on:click={() => applyTheme(t.id)}
+          ></button>
+        {/each}
+      </div>
+      <button
+        class="sound-toggle"
+        on:click={toggleMuted}
+        aria-pressed={$muted}
+        aria-label={$muted ? "Unmute sounds" : "Mute sounds"}
+        title={$muted ? "Sounds off" : "Sounds on"}
+      >{$muted ? "🔇" : "🔊"}</button>
     </div>
   </div>
 
@@ -351,10 +391,25 @@
     border: 0;
   }
 
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 0.5rem;
+  }
+  .sound-toggle {
+    font-size: 1rem;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  .sound-toggle:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
   .themes {
     display: flex;
     gap: 0.6rem;
-    margin-top: 0.5rem;
   }
   .theme-dot {
     width: 24px;
@@ -384,5 +439,58 @@
   }
   .theme-minimal {
     background: linear-gradient(135deg, #52525b, #a1a1aa);
+  }
+
+  /* History */
+  .history {
+    width: 100%;
+    font-size: 0.85rem;
+  }
+  .history summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    list-style: none;
+    padding: 0.5rem 0.25rem;
+    color: #8b8194;
+    font-weight: 700;
+    user-select: none;
+  }
+  .history summary::-webkit-details-marker {
+    display: none;
+  }
+  .history .clear {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--ds-accent-color, #c026d3);
+    text-decoration: underline;
+  }
+  .history ul {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.25rem 0;
+  }
+  .history li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: #6b6671;
+  }
+  .h-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+  .h-stat {
+    flex-shrink: 0;
+    color: #9b9199;
+  }
+  .h-pct {
+    font-weight: 700;
+    color: #16a34a;
   }
 </style>

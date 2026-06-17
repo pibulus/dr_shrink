@@ -10,12 +10,15 @@
   } from "$lib/services/compressService.js";
   import { theme, applyTheme } from "$lib";
   import { THEME_LIST } from "$lib/constants.js";
+  import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
+  import UnlockModal from "$lib/components/UnlockModal.svelte";
 
   let mascot;
   let dragOver = false;
   let busy = false;
   let busyLabel = "Shrinking…";
   let error = "";
+  let showUnlock = false;
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
 
@@ -23,6 +26,15 @@
     const files = [...fileList];
     if (!files.length) return;
     error = "";
+
+    // Supporter gate (size / batch limits)
+    const gate = checkDrop(files, $isSupporter);
+    if (!gate.ok) {
+      error = gate.reason;
+      if (gate.gated) showUnlock = true;
+      return;
+    }
+
     busy = true;
     busyLabel = files.length > 1 ? "Zipping…" : "Shrinking…";
     mascot?.startThinking();
@@ -154,9 +166,11 @@
   </div>
 
   <svelte:fragment slot="footer-buttons">
-    <FooterComponent />
+    <FooterComponent on:showUnlock={() => (showUnlock = true)} />
   </svelte:fragment>
 </PageLayout>
+
+<UnlockModal open={showUnlock} on:close={() => (showUnlock = false)} />
 
 <style>
   .mascot-slot {

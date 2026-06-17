@@ -8,17 +8,20 @@
     formatBytes,
     downloadBlob,
   } from "$lib/services/compressService.js";
-  import { theme, applyTheme } from "$lib";
-  import { THEME_LIST } from "$lib/constants.js";
+  import { theme } from "$lib";
   import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
   import UnlockModal from "$lib/components/UnlockModal.svelte";
-  import { history, recordHistory, clearHistory } from "$lib/services/historyService.js";
-  import { soundDrop, soundDone, soundError, muted, toggleMuted } from "$lib/services/soundService.js";
+  import AboutModal from "$lib/components/AboutModal.svelte";
+  import OptionsModal from "$lib/components/OptionsModal.svelte";
+  import { history, recordHistory } from "$lib/services/historyService.js";
+  import { soundDrop, soundDone, soundError } from "$lib/services/soundService.js";
 
   let mascot;
   let dragOver = false;
   let error = "";
   let showUnlock = false;
+  let showAbout = false;
+  let showOptions = false;
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
 
@@ -154,8 +157,8 @@
         {:else if phase === "done"}
           <span class="drop-text">{toast}</span>
         {:else}
-          <span class="drop-text">Drop anything here</span>
-          <span class="drop-sub">images · text · docs · audio · batches → zip</span>
+          <span class="drop-text">Drop anything in</span>
+          <span class="drop-sub">photos · audio · docs · text · a whole pile → zip</span>
         {/if}
       </span>
     </label>
@@ -223,35 +226,19 @@
       </details>
     {/if}
 
-    <!-- Theme switcher + sound toggle (the fun options) -->
-    <div class="controls">
-      <div class="themes" role="group" aria-label="Theme">
-        {#each THEME_LIST as t}
-          <button
-            class="theme-dot theme-{t.id}"
-            class:on={$theme === t.id}
-            title={t.label}
-            aria-label={t.label}
-            aria-pressed={$theme === t.id}
-            on:click={() => applyTheme(t.id)}
-          ></button>
-        {/each}
-      </div>
-      <button
-        class="sound-toggle"
-        on:click={toggleMuted}
-        aria-pressed={$muted}
-        aria-label={$muted ? "Unmute sounds" : "Mute sounds"}
-        title={$muted ? "Sounds off" : "Sounds on"}
-      >{$muted ? "🔇" : "🔊"}</button>
-    </div>
   </div>
 
   <svelte:fragment slot="footer-buttons">
-    <FooterComponent on:showUnlock={() => (showUnlock = true)} />
+    <FooterComponent
+      on:showAbout={() => (showAbout = true)}
+      on:showOptions={() => (showOptions = true)}
+      on:showUnlock={() => (showUnlock = true)}
+    />
   </svelte:fragment>
 </PageLayout>
 
+<AboutModal open={showAbout} on:close={() => (showAbout = false)} />
+<OptionsModal open={showOptions} on:close={() => (showOptions = false)} />
 <UnlockModal open={showUnlock} on:close={() => (showUnlock = false)} />
 
 <style>
@@ -340,6 +327,8 @@
     align-items: center;
     gap: 0.35rem;
     text-align: center;
+    /* keep the whole zone one drag target — no dragleave flicker over the text */
+    pointer-events: none;
   }
   .drop-text {
     font-size: 1.25rem;
@@ -389,56 +378,6 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
-  }
-
-  .controls {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-top: 0.5rem;
-  }
-  .sound-toggle {
-    font-size: 1rem;
-    line-height: 1;
-    opacity: 0.6;
-    transition: opacity 0.15s ease, transform 0.1s ease;
-  }
-  .sound-toggle:hover {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-  .themes {
-    display: flex;
-    gap: 0.6rem;
-  }
-  .theme-dot {
-    width: 24px;
-    height: 24px;
-    border-radius: 999px;
-    border: 3px solid rgba(0, 0, 0, 0.12);
-    cursor: pointer;
-    transition:
-      transform 0.12s ease,
-      border-color 0.12s ease;
-  }
-  .theme-dot:hover {
-    transform: scale(1.12);
-  }
-  .theme-dot.on {
-    border-color: rgba(0, 0, 0, 0.55);
-    transform: scale(1.12);
-  }
-  .theme-vibrant {
-    background: linear-gradient(135deg, #9333ea, #f472b6);
-  }
-  .theme-warm {
-    background: linear-gradient(135deg, #ff7a45, #ffd24c);
-  }
-  .theme-cool {
-    background: linear-gradient(135deg, #0fb5c9, #5fe07a);
-  }
-  .theme-minimal {
-    background: linear-gradient(135deg, #52525b, #a1a1aa);
   }
 
   /* History */

@@ -8,6 +8,8 @@
     formatBytes,
     downloadBlob,
   } from "$lib/services/compressService.js";
+  import { theme, applyTheme } from "$lib";
+  import { THEME_LIST } from "$lib/constants.js";
 
   let mascot;
   let dragOver = false;
@@ -58,7 +60,7 @@
         bind:this={mascot}
         character="brain"
         accessory="head-mirror"
-        theme="purple"
+        theme={$theme}
         {busy}
         ariaLabel="DrShrink — choose a file"
         on:activate={() => document.getElementById("file-input")?.click()}
@@ -128,6 +130,20 @@
         </ul>
       </div>
     {/if}
+
+    <!-- Theme switcher (the one fun option) -->
+    <div class="themes" role="group" aria-label="Theme">
+      {#each THEME_LIST as t}
+        <button
+          class="theme-dot theme-{t.id}"
+          class:on={$theme === t.id}
+          title={t.label}
+          aria-label={t.label}
+          aria-pressed={$theme === t.id}
+          on:click={() => applyTheme(t.id)}
+        ></button>
+      {/each}
+    </div>
   </div>
 
   <svelte:fragment slot="footer-buttons">
@@ -212,5 +228,40 @@
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+  }
+
+  .themes {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.5rem;
+  }
+  .theme-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 3px solid rgba(0, 0, 0, 0.12);
+    cursor: pointer;
+    transition:
+      transform 0.12s ease,
+      border-color 0.12s ease;
+  }
+  .theme-dot:hover {
+    transform: scale(1.12);
+  }
+  .theme-dot.on {
+    border-color: rgba(0, 0, 0, 0.55);
+    transform: scale(1.12);
+  }
+  .theme-vibrant {
+    background: linear-gradient(135deg, #9333ea, #f472b6);
+  }
+  .theme-warm {
+    background: linear-gradient(135deg, #ff7a45, #ffd24c);
+  }
+  .theme-cool {
+    background: linear-gradient(135deg, #0fb5c9, #5fe07a);
+  }
+  .theme-minimal {
+    background: linear-gradient(135deg, #52525b, #a1a1aa);
   }
 </style>

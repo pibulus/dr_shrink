@@ -14,7 +14,7 @@
 
 <div class="title-container relative">
   <h1
-    class="staggered-text mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal text-primary [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl"
+    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl"
     aria-label={title}
   >
     <span class="title-main-word">
@@ -60,6 +60,10 @@
     font-kerning: normal;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .title-ink {
+    color: var(--ds-primary-color, #9333ea);
   }
 
   .stagger-letter {

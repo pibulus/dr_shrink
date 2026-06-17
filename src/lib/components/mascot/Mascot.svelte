@@ -411,7 +411,9 @@
 		display: flex;
 		justify-content: center;
 		align-items: center;
-		contain: layout;
+		/* Allow the float/grow/wobble animations to extend past the box without
+		   clipping. Art also carries ~10% internal padding for headroom. */
+		overflow: visible;
 		/* Safari-specific fixes for flashing */
 		-webkit-backface-visibility: hidden;
 		-webkit-transform: translateZ(0);

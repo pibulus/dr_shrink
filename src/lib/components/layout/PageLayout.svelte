@@ -7,11 +7,11 @@
 <a class="skip-link" href="#main-content">Skip to content</a>
 
 <div
-  class="bg-gradient-mesh page-shell grid min-h-[100dvh] gap-8 px-4 py-6 pt-[clamp(3rem,8vh,5rem)] font-sans text-gray-800 antialiased sm:px-6 md:px-10"
+  class="bg-gradient-mesh page-shell grid min-h-[100dvh] gap-8 px-4 py-6 pt-[clamp(4rem,12vh,8rem)] font-sans text-gray-800 antialiased sm:px-6 md:px-10"
 >
   <main
     id="main-content"
-    class="mx-auto flex w-full max-w-md flex-col items-center sm:max-w-lg"
+    class="mx-auto flex w-full max-w-md flex-col items-center sm:max-w-lg md:max-w-2xl lg:max-w-3xl"
   >
     <slot />
   </main>
@@ -75,11 +75,5 @@
   }
   .skip-link:focus {
     left: 0;
-  }
-
-  @media (min-width: 1024px) {
-    .page-shell {
-      padding-top: clamp(2.5rem, 6vh, 4rem);
-    }
   }
 </style>

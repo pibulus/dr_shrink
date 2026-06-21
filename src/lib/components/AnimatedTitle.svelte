@@ -14,7 +14,7 @@
 
 <div class="title-container relative">
   <h1
-    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-6xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-7xl md:text-8xl"
+    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl"
     aria-label={title}
   >
     <span class="title-main-word">

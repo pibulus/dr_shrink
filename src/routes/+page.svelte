@@ -8,6 +8,7 @@
     formatBytes,
     downloadBlob,
   } from "$lib/services/compressService.js";
+  import { cacheId, putCache } from "$lib/services/blobCache.js";
   import { theme } from "$lib";
   import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
   import UnlockModal from "$lib/components/UnlockModal.svelte";
@@ -18,8 +19,10 @@
     history,
     recordHistory,
     clearHistory,
+    retryDownload,
   } from "$lib/services/historyService.js";
   import { tick, onDestroy } from "svelte";
+  import { browser } from "$app/environment";
   import {
     soundDrop,
     soundShrink,
@@ -43,12 +46,27 @@
   let confetti; // ShrinkConfetti instance — burst() on big wins
   let mascotSlotEl; // for locating the burst origin
   let dragOver = false;
+  let mascotDragOver = false; // files hovering over the mascot itself
+  let mascotDragCount = 0; // counter to avoid flicker from child elements
+  let catching = false; // brief catch animation on drop
+  let pulseInterval = null; // rhythmic pulse during processing
   let error = "";
   let showUnlock = false;
   let showAbout = false;
   let showOptions = false;
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
+  let autoDownload = browser
+    ? localStorage.getItem("drshrink-auto-download") !== "false"
+    : true;
+
+  function toggleAutoDownload() {
+    autoDownload = !autoDownload;
+    localStorage.setItem(
+      "drshrink-auto-download",
+      autoDownload ? "true" : "false",
+    );
+  }
 
   // Fused drop-zone state: idle | busy | done
   let phase = "idle";
@@ -179,6 +197,8 @@
     const quip = maybeCrunchQuip(); // 1-in-4 runs get a flavor line
     busyLabel = files.length > 1 ? "Zipping…" : "Shrinking…";
     mascot?.startThinking();
+    if (pulseInterval) clearInterval(pulseInterval);
+    pulseInterval = setInterval(() => mascot?.pulse(), 1200);
 
     try {
       const out = await compress(files, {
@@ -191,11 +211,14 @@
       let saved = 0;
       let inputTotal = 0;
       for (const r of out) {
-        results = [r, ...results];
-        recordHistory(r);
+        const id = cacheId();
+        putCache(id, r.name, r.type, r.blob).catch(() => {});
+        results = [{ ...r, blobId: id }, ...results];
+        recordHistory(r, id);
         saved += Math.max(0, r.saved);
         inputTotal += r.inputSize || 0;
         mascot?.react(Math.round(Math.max(0, r.saved) / 1024));
+        if (autoDownload) downloadBlob(r.blob, r.name);
       }
       progress = 1;
       // ratio of the whole batch that we shaved off — drives pop + sound size
@@ -220,6 +243,10 @@
     }
 
     mascot?.stopThinking();
+    if (pulseInterval) {
+      clearInterval(pulseInterval);
+      pulseInterval = null;
+    }
   }
 
   function onDrop(e) {
@@ -241,17 +268,42 @@
     if (toastTimer) clearTimeout(toastTimer);
     if (eggTimer) clearTimeout(eggTimer);
     if (tickleResetTimer) clearTimeout(tickleResetTimer);
+    if (pulseInterval) clearInterval(pulseInterval);
   });
 </script>
 
 <PageLayout>
-  <div class="flex w-full flex-col items-center gap-5">
+  <div class="flex w-full flex-col items-center gap-8">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={mascotSlotEl}
-      class="mascot-slot"
+      class="mascot-slot h-44 w-44 sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-64 lg:w-64"
       class:squeezing
       class:popping
+      class:catching
+      class:mascot-drag-over={mascotDragOver}
       style="--pop-scale: {popScale}"
+      on:dragenter={(e) => {
+        e.preventDefault();
+        mascotDragCount++;
+        mascotDragOver = true;
+      }}
+      on:dragleave={() => {
+        mascotDragCount--;
+        if (mascotDragCount <= 0) {
+          mascotDragCount = 0;
+          mascotDragOver = false;
+        }
+      }}
+      on:dragover|preventDefault
+      on:drop={(e) => {
+        e.preventDefault();
+        mascotDragCount = 0;
+        mascotDragOver = false;
+        catching = true;
+        setTimeout(() => (catching = false), 380);
+        handleFiles(e.dataTransfer.files);
+      }}
     >
       {#if eggQuip}
         <span class="egg-bubble" aria-hidden="true">{eggQuip}</span>
@@ -368,6 +420,18 @@
                 {formatBytes(h.inputSize)} → {formatBytes(h.outputSize)}
                 {#if !h.grew}<span class="h-pct">−{h.pct}%</span>{/if}
               </span>
+              {#if h.blobId}
+                <button
+                  class="h-dl"
+                  title="Re-download"
+                  aria-label="Re-download {h.name}"
+                  on:click={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const cached = await retryDownload(h);
+                    if (cached) downloadBlob(cached.blob, cached.name);
+                  }}>↓</button>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -386,17 +450,22 @@
 </PageLayout>
 
 <AboutModal open={showAbout} on:close={() => (showAbout = false)} />
-<OptionsModal open={showOptions} on:close={() => (showOptions = false)} />
+<OptionsModal 
+  open={showOptions} 
+  on:close={() => (showOptions = false)} 
+  {autoDownload}
+  onToggleAuto={toggleAutoDownload}
+/>
 <UnlockModal open={showUnlock} on:close={() => (showUnlock = false)} />
 
 <ShrinkConfetti bind:this={confetti} />
 
 <style>
   .mascot-slot {
-    /* big hero mascot, matching talktype/ziplist (~256px desktop) */
+    /* big hero mascot, matching talktype/ziplist — canonical responsive ramp:
+       h-44 w-44 → lg:h-64/w-64 (~176px base → 256px desktop) via Tailwind classes
+       in the markup. Inner Mascot SVG fills 100% of the slot. */
     position: relative;
-    width: clamp(180px, 42vw, 256px);
-    height: clamp(180px, 42vw, 256px);
     transform-origin: center bottom;
     will-change: transform;
     /* breathe more — the portable engine reads these float vars. A bigger,
@@ -438,6 +507,35 @@
           0 0 22px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7)
         )
         drop-shadow(0 0 38px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.4));
+    }
+  }
+
+  /* DRAG-OVER — files hovering over the doctor: scale up + intense multi-layer glow */
+  .mascot-slot.mascot-drag-over :global(.mascot-svg) {
+    transform: scale(1.07);
+    filter: drop-shadow(
+        0 0 24px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.75)
+      )
+      drop-shadow(0 0 48px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.5))
+      drop-shadow(0 0 72px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.25));
+    transition:
+      transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+      filter 0.28s ease;
+  }
+
+  /* CATCH — quick squish on drop, like the doctor caught the files */
+  .mascot-slot.catching {
+    animation: dr-catch 0.38s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes dr-catch {
+    0% {
+      transform: scale(1);
+    }
+    35% {
+      transform: scale(0.86, 1.1) translateY(3%);
+    }
+    100% {
+      transform: scale(1);
     }
   }
 
@@ -728,5 +826,27 @@
   .h-pct {
     font-weight: 700;
     color: #16a34a;
+  }
+  .h-dl {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.12);
+    color: var(--ds-primary-color, #9333ea);
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1;
+    transition:
+      background 0.15s ease,
+      transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .h-dl:hover {
+    background: var(--ds-primary-color, #9333ea);
+    color: #fff;
+    transform: translateY(-1px);
+  }
+  .h-dl:active {
+    transform: scale(0.88);
   }
 </style>

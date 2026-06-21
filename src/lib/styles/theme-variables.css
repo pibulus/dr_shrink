@@ -13,6 +13,7 @@
 
   --ds-accent-color-rgb: 192, 38, 211;
   --ds-footer-surface-rgb: 255, 246, 230;
+  --app-suffix-gradient: linear-gradient(to bottom right, #9333ea, #f472b6);
 }
 
 html[data-theme="vibrant"] {
@@ -26,6 +27,7 @@ html[data-theme="vibrant"] {
 
   --ds-accent-color-rgb: 192, 38, 211;
   --ds-footer-surface-rgb: 255, 246, 230;
+  --app-suffix-gradient: linear-gradient(to bottom right, #9333ea, #f472b6);
 }
 
 html[data-theme="warm"] {
@@ -39,6 +41,7 @@ html[data-theme="warm"] {
 
   --ds-accent-color-rgb: 255, 90, 60;
   --ds-footer-surface-rgb: 255, 248, 240;
+  --app-suffix-gradient: linear-gradient(to bottom right, #ff8159, #ffb86b);
 }
 
 html[data-theme="cool"] {
@@ -52,6 +55,7 @@ html[data-theme="cool"] {
 
   --ds-accent-color-rgb: 20, 184, 166;
   --ds-footer-surface-rgb: 240, 253, 250;
+  --app-suffix-gradient: linear-gradient(to bottom right, #22d3ed, #4ade80);
 }
 
 html[data-theme="minimal"] {
@@ -65,4 +69,5 @@ html[data-theme="minimal"] {
 
   --ds-accent-color-rgb: 113, 113, 122;
   --ds-footer-surface-rgb: 250, 250, 250;
+  --app-suffix-gradient: linear-gradient(to bottom right, #6b6b6b, #9b9b9b);
 }

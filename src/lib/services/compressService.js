@@ -6,7 +6,7 @@
 // One file → the obviously-right action for its type. Multiple files → a .zip.
 //
 // Eager deps stay tiny (native Canvas + fflate). Heavy converters (mammoth for
-// docx, ffmpeg.wasm for audio) are lazy-imported only when their type is dropped.
+// docx, ffmpeg.wasm for audio/video) are lazy-imported only when their type is dropped.
 
 import { zipSync, gzipSync } from "fflate";
 
@@ -19,18 +19,27 @@ const IMAGE_QUALITY = 0.86;
 const MAX_DIMENSION = 3840;
 // If we'd save less than this fraction, it's not worth degrading — keep original.
 const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
+// Batch safety: if total input exceeds this, refuse — zip holds all files
+// + a full zip copy in memory simultaneously (~2× peak). 300 MB keeps us
+// well under mobile JS heap limits.
+const MAX_BATCH_BYTES = 300 * 1024 * 1024;
 
 // ── type detection ──
-const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif)$/i;
+const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif|tiff?)$/i;
 const TEXT_RE =
   /\.(txt|md|markdown|csv|tsv|json|log|svg|xml|yaml|yml|js|ts|css|html?|c|cpp|h|py|rb|go|rs|sh)$/i;
 const DOCX_RE = /\.docx$/i;
-const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|flac)$/i;
+const SVG_RE = /\.svg$/i;
+const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|flac|aiff?)$/i;
+const VIDEO_RE = /\.(mp4|mov|webm|mkv|avi|m4v)$/i;
 // already-compressed: gzip/zip won't help, and we have no better handler
-const PACKED_RE = /\.(zip|gz|7z|rar|mp4|mov|webm|mkv|pdf|heic)$/i;
+const PACKED_RE = /\.(zip|gz|7z|rar|pdf|heic)$/i;
 
 export function isImage(file) {
   return file.type.startsWith("image/") || IMAGE_RE.test(file.name);
+}
+function isSvg(file) {
+  return file.type === "image/svg+xml" || SVG_RE.test(file.name);
 }
 function isText(file) {
   return file.type.startsWith("text/") || TEXT_RE.test(file.name);
@@ -40,6 +49,9 @@ function isDocx(file) {
 }
 function isAudio(file) {
   return file.type.startsWith("audio/") || AUDIO_RE.test(file.name);
+}
+function isVideo(file) {
+  return file.type.startsWith("video/") || VIDEO_RE.test(file.name);
 }
 function isPacked(file) {
   return PACKED_RE.test(file.name);
@@ -185,6 +197,26 @@ async function compressHtml(file) {
   );
 }
 
+// ── svg: minify in-place (strip comments, whitespace, cruft) ──
+async function compressSvg(file) {
+  const raw = await file.text();
+  const out = raw
+    .replace(/<!--[\s\S]*?-->/g, "") // strip XML comments
+    .replace(/<\?xml[^>]*\?>\s*/g, "") // strip XML declaration
+    .replace(/<!DOCTYPE[^>]*>\s*/gi, "") // strip doctype
+    .replace(/>\s+</g, "><") // collapse whitespace between tags
+    .replace(/\s{2,}/g, " ") // collapse runs of spaces
+    .trim();
+  const blob = new Blob([out], { type: "image/svg+xml" });
+  return result(
+    blob,
+    `${baseName(file.name)}.min.svg`,
+    "image/svg+xml",
+    file.size,
+    "minified",
+  );
+}
+
 // ── docx → plain text (lazy mammoth) ──
 async function compressDocx(file) {
   const mammoth = await import("mammoth");
@@ -222,34 +254,84 @@ async function compressAudio(file, onProgress) {
   const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
   const outName = baseName(file.name) + ".min.mp3";
   await ff.writeFile(inName, await fetchFile(file));
-  // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
-  await ff.exec([
-    "-i",
-    inName,
-    "-codec:a",
-    "libmp3lame",
-    "-qscale:a",
-    "5",
-    outName,
-  ]);
-  const data = await ff.readFile(outName);
-  const blob = new Blob([data.buffer], { type: "audio/mpeg" });
-  await ff.deleteFile(inName).catch(() => {});
-  await ff.deleteFile(outName).catch(() => {});
-  return result(blob, outName, "audio/mpeg", file.size, "re-encoded mp3");
+  try {
+    // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
+    await ff.exec([
+      "-i",
+      inName,
+      "-codec:a",
+      "libmp3lame",
+      "-qscale:a",
+      "5",
+      outName,
+    ]);
+    const data = await ff.readFile(outName);
+    const blob = new Blob([data], { type: "audio/mpeg" });
+    return result(blob, outName, "audio/mpeg", file.size, "re-encoded mp3");
+  } finally {
+    await ff.deleteFile(inName).catch(() => {});
+    await ff.deleteFile(outName).catch(() => {});
+  }
+}
+
+// ── video → re-encode mp4 (same lazy ffmpeg.wasm) ──
+async function compressVideo(file, onProgress) {
+  const ff = await getFFmpeg(onProgress);
+  const { fetchFile } = await import("@ffmpeg/util");
+  const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
+  const outName = baseName(file.name) + ".min.mp4";
+  await ff.writeFile(inName, await fetchFile(file));
+  try {
+    // 80/20: CRF 28 + ultrafast preset — good shrink, bearable WASM speed.
+    // CRF 28 is the sweet spot (23 = near-lossless, 32 = visibly compressed).
+    await ff.exec([
+      "-i",
+      inName,
+      "-c:v",
+      "libx264",
+      "-crf",
+      "28",
+      "-preset",
+      "ultrafast",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "128k",
+      "-movflags",
+      "+faststart",
+      outName,
+    ]);
+    const data = await ff.readFile(outName);
+    const blob = new Blob([data], { type: "video/mp4" });
+    return result(blob, outName, "video/mp4", file.size, "re-encoded mp4");
+  } finally {
+    await ff.deleteFile(inName).catch(() => {});
+    await ff.deleteFile(outName).catch(() => {});
+  }
 }
 
 // ── batch → single .zip (shrink each shrinkable file first, then bundle) ──
 async function zipFiles(files, onProgress) {
+  const inputTotal = files.reduce((a, f) => a + f.size, 0);
+  if (inputTotal > MAX_BATCH_BYTES) {
+    throw new Error(
+      `${formatBytes(inputTotal)} total is too much for one batch. Try fewer or smaller files.`,
+    );
+  }
   const entries = {};
-  let inputTotal = 0;
   let i = 0;
   for (const f of files) {
-    inputTotal += f.size;
     onProgress?.(i / files.length);
     let bytes, name;
-    // Try to shrink images/text/docx individually before bundling; otherwise store raw.
-    if (isImage(f) || isText(f) || isDocx(f) || file_isHtml(f)) {
+    // Try to shrink images/text/docx/audio/video individually before bundling; otherwise store raw.
+    if (
+      isImage(f) ||
+      isText(f) ||
+      isDocx(f) ||
+      file_isHtml(f) ||
+      isAudio(f) ||
+      isVideo(f)
+    ) {
       try {
         const r = await compressOne(f);
         // only keep the compressed version if it actually got smaller
@@ -290,12 +372,14 @@ function file_isHtml(f) {
  * Compress one file by its type. `onProgress(0..1)` is used for slow ops (audio).
  */
 export async function compressOne(file, onProgress) {
+  if (isSvg(file)) return compressSvg(file);
   if (isImage(file)) return compressImage(file);
   if (isDocx(file)) return compressDocx(file);
   if (file.type === "text/html" || /\.html?$/i.test(file.name))
     return compressHtml(file);
   if (isText(file)) return compressText(file);
   if (isAudio(file)) return compressAudio(file, onProgress);
+  if (isVideo(file)) return compressVideo(file, onProgress);
   if (isPacked(file)) {
     throw new Error(`${file.name} is already compressed — nothing to shrink.`);
   }

@@ -7,7 +7,7 @@
 // license check in a later pass; the rest of the app already respects these.
 
 import { writable } from "svelte/store";
-import { browser } from "$app/environment";
+import { browser, dev } from "$app/environment";
 
 const KEY = "drshrink-supporter";
 
@@ -46,6 +46,9 @@ const VALID_CODES = new Set([
 
 /** Try to redeem a contributor code. Returns true if it unlocked supporter. */
 export function redeemCode(code) {
+  // Placeholder codes disabled in production — real validation lands with
+  // payment integration. In dev mode the hardcoded set still works for testing.
+  if (!dev) return false;
   const c = (code || "").trim().toLowerCase();
   if (VALID_CODES.has(c)) {
     setSupporter(true);

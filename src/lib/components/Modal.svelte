@@ -30,7 +30,11 @@
 
       {#if title}
         <header class="head">
-          {#if icon}<span class="ico" aria-hidden="true">{icon}</span>{/if}
+          {#if $$slots.icon}
+            <span class="ico" aria-hidden="true"><slot name="icon" /></span>
+          {:else if icon}
+            <span class="ico" aria-hidden="true">{icon}</span>
+          {/if}
           <h2>{title}</h2>
         </header>
       {/if}

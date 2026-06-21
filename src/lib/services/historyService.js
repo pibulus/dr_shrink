@@ -1,12 +1,14 @@
 // ===================================================================
-// HISTORY — recent compressions (stats only, never the files)
+// HISTORY — recent compressions (stats persisted, blobs cached separately)
 // ===================================================================
-// We persist a lightweight log of what was shrunk (name, before→after, %,
-// when) to localStorage. We deliberately do NOT store the files themselves —
-// too big, and privacy-first means nothing lingers on disk.
+// Stats live in localStorage (lightweight, persists forever). The actual
+// compressed blobs live in IndexedDB via blobCache.js (30-min TTL, 10 max).
+// Each history entry carries a blobId that links back to the cache.
+// Once the cache TTL expires, the entry stays visible but isn't re-downloadable.
 
 import { writable } from "svelte/store";
 import { browser } from "$app/environment";
+import { getCache } from "./blobCache.js";
 
 const KEY = "drshrink-history";
 const MAX_ENTRIES = 25;
@@ -36,8 +38,9 @@ function persist(list) {
 /**
  * Record one finished compression result (the shape from compressService).
  * @param {{name,inputSize,outputSize,saved,ratio,grew,note}} r
+ * @param {string} [blobId] — cache key for re-download (from blobCache)
  */
-export function recordHistory(r) {
+export function recordHistory(r, blobId) {
   if (!r) return;
   const entry = {
     name: r.name,
@@ -47,6 +50,7 @@ export function recordHistory(r) {
     pct: r.ratio ? Math.round((1 - r.ratio) * 100) : 0,
     grew: !!r.grew,
     note: r.note || "",
+    blobId: blobId || null,
     at: nowMs(),
   };
   history.update((list) => {
@@ -69,4 +73,13 @@ function nowMs() {
 /** Total bytes saved across all recorded jobs. */
 export function totalSaved(list) {
   return list.reduce((a, e) => a + (e.saved || 0), 0);
+}
+
+/**
+ * Try to fetch a cached blob for a history entry so it can be re-downloaded.
+ * Returns { blob, name } or null if the cache TTL has expired.
+ */
+export async function retryDownload(entry) {
+  if (!entry?.blobId) return null;
+  return getCache(entry.blobId);
 }

@@ -7,9 +7,14 @@
   import ThemeMascot from "./ThemeMascot.svelte";
 
   export let open = false;
+  export let autoDownload = true;
+  export let onToggleAuto = undefined;
 </script>
 
-<Modal {open} title="Options" icon="🎛️" on:close>
+<Modal {open} title="Options" on:close>
+  <svelte:fragment slot="icon">
+    <ThemeMascot theme={$theme} size="30px" />
+  </svelte:fragment>
   <div class="rows">
     <!-- Theme — pick the doctor's vibe (mini-brain per theme, à la TalkType) -->
     <div class="row col">
@@ -44,6 +49,21 @@
         aria-checked={!$muted}
         aria-label="Toggle sounds"
         on:click={toggleMuted}
+      >
+        <span class="knob"></span>
+      </button>
+    </div>
+
+    <!-- Auto-download -->
+    <div class="row">
+      <span class="label">Auto-download</span>
+      <button
+        class="switch"
+        class:on={autoDownload}
+        role="switch"
+        aria-checked={autoDownload}
+        aria-label="Toggle auto-download"
+        on:click={onToggleAuto}
       >
         <span class="knob"></span>
       </button>

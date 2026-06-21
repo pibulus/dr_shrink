@@ -1,9 +1,15 @@
 <script>
   import Modal from "./Modal.svelte";
+  import ThemeMascot from "./ThemeMascot.svelte";
+  import { theme } from "$lib";
+
   export let open = false;
 </script>
 
-<Modal {open} title="The shrink-anything thing" icon="🧠" on:close>
+<Modal {open} title="The shrink-anything thing" on:close>
+  <svelte:fragment slot="icon">
+    <ThemeMascot theme={$theme} size="30px" />
+  </svelte:fragment>
   <div class="space-y-3">
     <p class="lede">
       DrShrink takes the thing you drop and hands back something smaller and more

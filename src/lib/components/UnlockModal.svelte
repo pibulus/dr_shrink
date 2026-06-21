@@ -1,6 +1,9 @@
 <script>
   import Modal from "./Modal.svelte";
+  import ThemeMascot from "./ThemeMascot.svelte";
+  import { theme } from "$lib";
   import { isSupporter, setSupporter, redeemCode, LIMITS } from "$lib/services/supporterService.js";
+  import { dev } from "$app/environment";
 
   export let open = false;
 
@@ -16,13 +19,18 @@
   }
 </script>
 
-<Modal {open} title="Become a Contributor" icon="💜" on:close>
+<Modal {open} title="Become a Contributor" on:close>
+  <svelte:fragment slot="icon">
+    <ThemeMascot theme={$theme} size="30px" />
+  </svelte:fragment>
   {#if $isSupporter}
     <div class="thanks-box">
       <p class="thanks">You're a Contributor — thank you! 💜</p>
       <p class="sub">Bigger files, bigger batches, and first dibs on new tricks are all yours.</p>
     </div>
-    <button class="ghost" on:click={() => setSupporter(false)}>(dev) turn off</button>
+    {#if dev}
+      <button class="ghost" on:click={() => setSupporter(false)}>(dev) turn off</button>
+    {/if}
   {:else}
     <p class="pitch">
       DrShrink is free and always will be. Contributors chip in <strong>$9/year</strong>
@@ -56,7 +64,9 @@
       <p class="code-hint">Codes are for gifts and your other devices.</p>
     </div>
 
-    <button class="ghost" on:click={() => setSupporter(true)}>(dev) simulate</button>
+    {#if dev}
+      <button class="ghost" on:click={() => setSupporter(true)}>(dev) simulate</button>
+    {/if}
   {/if}
 
   <p class="fine">No accounts. No tracking. Files never leave your device.</p>

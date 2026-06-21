@@ -213,7 +213,7 @@
       for (const r of out) {
         const id = cacheId();
         putCache(id, r.name, r.type, r.blob).catch(() => {});
-        results = [{ ...r, blobId: id }, ...results];
+        results = [{ ...r, blobId: id }, ...results].slice(0, 25);
         recordHistory(r, id);
         saved += Math.max(0, r.saved);
         inputTotal += r.inputSize || 0;

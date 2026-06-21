@@ -46,12 +46,12 @@ let initialLoadEffectApplied = false;
 export function initAnimations(elements, config = {}) {
   if (!elements || !isBrowser()) return () => {};
 
-  const { seed = 0 } = config;
+  const { seed = 0, gradientFlow = true } = config;
 
   // Initialize mascot shape gradient animation
   if (elements.mascotSvg && elements.mascotSvg.querySelector("svg")) {
     const svgEl = elements.mascotSvg.querySelector("svg");
-    initThemeAnimation(svgEl, config.theme);
+    initThemeAnimation(svgEl, config.theme, gradientFlow);
   }
 
   // Start watching for special animations (easter eggs)
@@ -70,8 +70,10 @@ export function initAnimations(elements, config = {}) {
  *
  * @param {SVGElement} svgElement - SVG element to animate
  * @param {string} theme - Theme name
+ * @param {boolean} gradientFlow - When false, skip the live gradient RAF flow
+ *   (static gradient: full theme colours, no animation). Default true.
  */
-export function initThemeAnimation(svgElement, theme) {
+export function initThemeAnimation(svgElement, theme, gradientFlow = true) {
   if (!svgElement || !theme) return;
 
   // Force a reflow to ensure CSS transitions apply correctly
@@ -83,8 +85,12 @@ export function initThemeAnimation(svgElement, theme) {
     forceReflow(shapeElem);
   }
 
-  // Initialize gradient animations
-  initGradientAnimation(theme, svgElement);
+  // Initialize gradient animations — only when flow is enabled. When disabled,
+  // the gradient stops keep their static theme colours (from GradientDefs +
+  // the --mascot-<theme>-* CSS vars) and simply don't animate.
+  if (gradientFlow) {
+    initGradientAnimation(theme, svgElement);
+  }
 }
 
 /**

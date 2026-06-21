@@ -83,9 +83,27 @@ cp -r src/lib/components/mascot /path/to/other-app/src/lib/components/
 | `ariaLabel`                        | `"Mascot"`            | accessible label for the button                       |
 | `seed`                             | `0`                   | daily personality seed                                |
 | `width`/`height`/`scale`/`opacity` | `100%`/`100%`/`1`/`1` | sizing on the container                               |
+| `aura`                             | `false`               | idle "tappable" pulse-ring (interactive only)         |
+| `haptic`                           | `null`                | fn fired on activate, e.g. `hapticService.impact`     |
+| `hapticStyle`                      | `"medium"`            | impact weight passed to `haptic`                      |
 | `debug`/`debugAnim`                | `false`               | dev visualisation                                     |
 
 **Events:** `on:activate` (interactive click/Enter/Space).
+
+### Grafted from ZipList (opt-in, non-breaking)
+
+- **Sizing tokens** `--mascot-size-mobile/-sm/-md/-lg` — a CSS-var size-parity
+  contract so sister apps read the same visible-ink size side by side. Set them
+  on a parent to resize without forking the breakpoints:
+  ```css
+  :global(.my-app) { --mascot-size-mobile: 110px; --mascot-size-lg: 160px; }
+  ```
+  If unset, the inline `width`/`height` props win (byte-identical to before).
+- **`aura`** — soft idle pulse-ring affordance; tune with `--mascot-aura-color-1/2/3`,
+  `--mascot-aura-radius`, `--mascot-aura-duration`, `--mascot-aura-delay`. Honours
+  `prefers-reduced-motion`.
+- **`haptic`** — pass a `(style) => void` (e.g. a `hapticService.impact`) and it
+  buzzes on every activate. Failures are swallowed so they never block the tap.
 
 **Methods** (via `bind:this`): `pulse()`, `startThinking()`, `stopThinking()`,
 `react(intensity)`. Map to your app's states — `startThinking()` while compressing,

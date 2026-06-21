@@ -27,6 +27,11 @@
 	export let debug = false;
 	export let debugAnim = false;
 	export let seed = 0;
+	// Gates the live gradient FLOW (gradientAnimator RAF loop). When true (default)
+	// the gradient stop-colors/positions animate over time. When false the gradient
+	// is rendered STATIC — full theme colours, just no live animation. This is a
+	// first-class engine mode (re-syncable), not a per-app fork of gradientAnimator.
+	export let gradientFlow = true;
 	export let externalTheme = null;
 	export let width = '100%';
 	export let height = '100%';
@@ -42,6 +47,17 @@
 	export let accessoryOffsetY = 0;
 	// Which character art to render (art/<name>.svg). Default: first available.
 	export let character = 'brain';
+	// --- GRAFTED FROM ZIPLIST (opt-in, non-breaking) ---
+	// (b) Idle "tappable" aura — a soft pulse-ring that hints the mascot is
+	// pressable, fading in after the entrance settles. Default off so existing
+	// apps render identically until they opt in. Only meaningful when interactive.
+	// Tune the ring with the --mascot-aura-* CSS vars (see the style block).
+	export let aura = false;
+	// (c) Haptic tap. Pass a function (e.g. hapticService.impact) and it fires a
+	// short buzz on every activate. Default null = no haptics, zero behaviour
+	// change for apps that don't pass it. `hapticStyle` picks the impact weight.
+	export let haptic = null;
+	export let hapticStyle = 'medium';
 	const mascotInstanceId = Symbol('mascot-instance');
 	let mascotSvg;
 	let spinPivotElement;
@@ -190,6 +206,14 @@
 	// Handle click on the mascot — app-neutral: emit an `activate` event.
 	function handleClick() {
 		if (interactive) {
+			// (c) Grafted haptic tap — fire only if the app passed a haptic fn.
+			if (browser && typeof haptic === 'function') {
+				try {
+					haptic(hapticStyle);
+				} catch {
+					/* never let a haptic failure block activation */
+				}
+			}
 			dispatch('activate');
 			// Wobble is driven by the `active` state change the app makes in response.
 		}
@@ -223,7 +247,8 @@
 			// Initialize animation services
 			const cleanupAnimations = animationService.initAnimations(elements, {
 				seed,
-				theme: currentTheme
+				theme: currentTheme,
+				gradientFlow
 			});
 
 			// Initialize blink service
@@ -317,8 +342,9 @@
       {$mascotState.current === ANIMATION_STATES.INITIAL ? 'initializing' : ''}
       {$mascotState.current === ANIMATION_STATES.ASLEEP ? CSS_CLASSES.ASLEEP : ''}
       {$mascotState.current === ANIMATION_STATES.WAKING_UP ? CSS_CLASSES.WAKING_UP : ''}
+      {aura && interactive ? 'has-aura' : ''}
       {!interactive ? 'mascot-non-clickable' : ''}"
-	style="width: {width}; height: {height}; opacity: {opacity}; transform: scale({scale}); {personalityStyle}"
+	style="width: var(--mascot-size-current, {width}); height: var(--mascot-size-current, {height}); opacity: {opacity}; transform: scale({scale}); {personalityStyle}"
 	data-mascot-mood={personalityMood}
 	on:click={() => {
 		if (interactive) {
@@ -378,7 +404,7 @@
 							xlink:href={mascotPathsUrl}
 							href={mascotPathsUrl + '#mascot-body-path'}
 							class="mascot-outline-path"
-							fill="#000000"
+							fill="var(--mascot-ink, #000000)"
 							opacity="1"
 						/>
 					</g>
@@ -389,14 +415,14 @@
 							xlink:href={mascotPathsUrl}
 							href={mascotPathsUrl + '#mascot-eye-left-path'}
 							class="mascot-eye mascot-eye-left"
-							fill="#000000"
+							fill="var(--mascot-ink, #000000)"
 						/>
 						<use
 							bind:this={rightEye}
 							xlink:href={mascotPathsUrl}
 							href={mascotPathsUrl + '#mascot-eye-right-path'}
 							class="mascot-eye mascot-eye-right"
-							fill="#000000"
+							fill="var(--mascot-ink, #000000)"
 						/>
 					</g>
 
@@ -419,6 +445,16 @@
 
 <style>
 	.mascot-container {
+		/* Eye/body ink colour. Per-app SKIN knob — set --mascot-ink in the app
+		   to override (e.g. soft #1a1730). Defaults to pure black. */
+		--mascot-ink: #000000;
+		/* --- GRAFTED FROM ZIPLIST: cross-app sizing tokens (a) ---
+		   A CSS-var size-parity contract so sister apps read the same visible-ink
+		   size side by side. OPT-IN: --mascot-size-current is only resolved from
+		   these tokens inside the breakpoints below WHEN an app sets them. If an
+		   app sets none, --mascot-size-current stays unset and the inline
+		   width/height props win (current behaviour, byte-identical render).
+		   To use: set --mascot-size-mobile/-sm/-md/-lg on a parent. */
 		position: relative;
 		width: 100%;
 		height: 100%;
@@ -557,5 +593,95 @@
 
 	.animations-paused .mascot-svg .mascot-shape {
 		animation-play-state: paused;
+	}
+
+	/* === GRAFTED FROM ZIPLIST ===
+	   (a) Cross-app sizing tokens — the SoftStack mascot scale. These map the
+	   app-provided --mascot-size-* tokens onto --mascot-size-current, which the
+	   inline width/height read (with the width/height props as fallback). They
+	   only fire when an app actually sets a token, so apps that don't opt in are
+	   completely unaffected. Resize without forking breakpoints by setting the
+	   --mascot-size-mobile / -sm / -md / -lg vars on a parent selector.
+	   The recommended SoftStack defaults (matched to TalkType ghost ink):
+	     mobile 110px, sm 120px, md 140px, lg 160px. */
+	.mascot-container {
+		--mascot-size-current: var(--mascot-size-mobile);
+	}
+	@media (min-width: 640px) {
+		.mascot-container {
+			--mascot-size-current: var(--mascot-size-sm, var(--mascot-size-mobile));
+		}
+	}
+	@media (min-width: 768px) {
+		.mascot-container {
+			--mascot-size-current: var(
+				--mascot-size-md,
+				var(--mascot-size-sm, var(--mascot-size-mobile))
+			);
+		}
+	}
+	@media (min-width: 1024px) {
+		.mascot-container {
+			--mascot-size-current: var(
+				--mascot-size-lg,
+				var(--mascot-size-md, var(--mascot-size-sm, var(--mascot-size-mobile)))
+			);
+		}
+	}
+
+	/* (b) Idle "tappable" aura — a soft pulse-ring that hints the mascot is
+	   pressable, fading in after the entrance settles. Only rendered when the
+	   `aura` prop is true (adds .has-aura) AND interactive. Tune via the
+	   --mascot-aura-* vars; defaults are warm pastel-punk. */
+	.mascot-container.has-aura {
+		--mascot-aura-color-1: rgba(255, 204, 51, 0.18);
+		--mascot-aura-color-2: rgba(255, 106, 194, 0.12);
+		--mascot-aura-color-3: rgba(113, 201, 206, 0.08);
+		--mascot-aura-radius: 28px;
+		--mascot-aura-duration: 3.4s;
+		--mascot-aura-delay: 2.2s;
+	}
+
+	.mascot-container.has-aura::after {
+		content: '';
+		position: absolute;
+		inset: -10px;
+		border-radius: var(--mascot-aura-radius, 28px);
+		background: radial-gradient(
+			circle at 50% 54%,
+			var(--mascot-aura-color-1) 0%,
+			var(--mascot-aura-color-2) 42%,
+			var(--mascot-aura-color-3) 58%,
+			transparent 74%
+		);
+		filter: blur(1px);
+		animation: mascot-aura var(--mascot-aura-duration, 3.4s) ease-in-out infinite;
+		animation-delay: var(--mascot-aura-delay, 2.2s);
+		opacity: 0;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	@keyframes mascot-aura {
+		0% {
+			opacity: 0;
+			transform: scale(0.9);
+		}
+		36% {
+			opacity: 0.72;
+		}
+		72% {
+			opacity: 0.38;
+		}
+		100% {
+			opacity: 0;
+			transform: scale(1.06);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.mascot-container.has-aura::after {
+			animation: none;
+		}
 	}
 </style>

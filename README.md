@@ -2,27 +2,34 @@
 
 **Drop a file in, get a smaller one out.** No settings, no uploads, 100% in your browser.
 
-DrShrink shrinks things the 80/20 way — one good default per file type, zero knobs:
+DrShrink is a little brain dude that catches your files, squishes them down, and hands back something smaller and more useful. One good default per file type, zero knobs. Drop anything — the doctor figures out what to do.
 
-| Drop this                         | Get this                                            |
-| --------------------------------- | --------------------------------------------------- |
-| image (jpg/png/webp…)             | re-encoded WebP (much smaller)                      |
-| multiple files                    | a single `.zip` (each shrinkable file shrunk first) |
-| text / code / json / svg / md     | gzipped `.gz`                                       |
-| `.html`                           | stripped to plain text                              |
-| `.docx`                           | plain text (`.txt`)                                 |
-| audio (mp3/wav/m4a)               | smaller mp3                                         |
-| already-compressed (zip/mp4/pdf…) | politely refused — nothing to do                    |
+| Drop this                             | Get this                                        |
+| ------------------------------------- | ----------------------------------------------- |
+| Images (jpg/png/webp/bmp/gif/tiff)    | WebP at q0.86, 4K cap — or kept if already tiny |
+| SVG                                   | Minified in-place (stripped cruft) → `.min.svg` |
+| Video (mp4/mov/webm/mkv/avi)          | H.264 mp4, CRF 28, ultrafast                    |
+| Audio (mp3/wav/m4a/aac/ogg/flac/aiff) | VBR mp3, ~128kbps                               |
+| Text/code/json/csv/svg/xml/yaml/md    | Gzipped `.gz`                                   |
+| HTML                                  | Stripped to plain text                          |
+| DOCX                                  | Extracted text (`.txt`)                         |
+| Multiple files                        | One `.zip` — each file shrunk first             |
+| Anything else                         | Gzip fallback                                   |
 
-Everything runs client-side. Files never leave your device.
+Already-compressed stuff (zip/gz/7z/rar/pdf/heic) gets politely refused.
+
+**Everything runs client-side.** Files never leave your device. No accounts, no tracking, no servers.
+
+## Vibe
+
+The mascot catches your files mid-air — glows and scales up when you drag over, squishes flat while crunching, then spring-bounces back harder the more it saved. Results stick around for 30 minutes (IndexedDB) so you can re-download from history. Auto-download on by default. Tickle the doctor if you want.
+
+Four themes (vibrant / warm / cool / minimal), Web Audio blips, confetti on big wins. The brain shows up everywhere — favicon, PWA icons, modals, theme pickers.
 
 ## Stack
 
 SvelteKit · Svelte 5 · Tailwind + DaisyUI · `@sveltejs/adapter-node`.
-Compression: native Canvas (images), [`fflate`](https://github.com/101arrowz/fflate)
-(zip/gzip, eager), [`mammoth`](https://github.com/mwilliamson/mammoth.js) (docx, lazy),
-[`@ffmpeg/ffmpeg`](https://github.com/ffmpegwasm/ffmpeg.wasm) (audio, lazy).
-Living mascot via the [softstack-mascot](https://github.com/pibulus/softstack-mascot) kit.
+Compression: native Canvas (images), [`fflate`](https://github.com/101arrowz/fflate) (zip/gzip, eager), [`mammoth`](https://github.com/mwilliamson/mammoth.js) (docx, lazy), [`@ffmpeg/ffmpeg`](https://github.com/ffmpegwasm/ffmpeg.wasm) (audio/video, lazy ~31MB WASM from unpkg CDN). Living mascot engine in `src/lib/components/mascot/`.
 
 ## Dev
 
@@ -36,20 +43,18 @@ npm run lint     # prettier + eslint
 
 ## Themes
 
-Four themes (vibrant / warm / cool / minimal) via `html[data-theme]` + `--ds-*` CSS
-vars; the mascot recolors with the theme. See `src/lib/styles/theme-variables.css`.
+Four themes (vibrant / warm / cool / minimal) via `html[data-theme]` + `--ds-*` CSS custom properties. The mascot recolors with the theme. See `src/lib/styles/theme-variables.css`.
 
 ## Supporter
 
-`$9/yr` stub: `src/lib/services/supporterService.js` gates file size + batch limits
-(structure only — no real payment wired yet).
+`$9/yr` stub: `src/lib/services/supporterService.js` gates file size + batch limits (structure only — no real payment wired yet). Contributor codes gated to dev mode only.
+
+Free: 25 MB/file, 5 files/batch. Supporter: 500 MB/file, 200 files/batch.
 
 ## Deploy
 
-Self-hosted on a Raspberry Pi via the `pibulus-os` `deploy_app.sh` node-build pattern
-(systemd service + cloudflared). Target domain: **drshrink.app**.
+Self-hosted on a Raspberry Pi via the `pibulus-os` `deploy_app.sh` node-build pattern (systemd service + cloudflared). Target domain: **drshrink.app**.
 
 ---
 
-Part of the drag-into-mascot micro-app family (DrShrink · metaflush · cryptkeep · iconmakeit).
-Built with the SoftStack philosophy: one thing, done well, runs locally, sparks joy.
+Part of the drag-into-mascot micro-app family (DrShrink · TalkType · ZipList · CryptKeep). Built with the SoftStack philosophy: one thing, done well, runs locally, sparks joy.

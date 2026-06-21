@@ -2,7 +2,13 @@
   import Modal from "./Modal.svelte";
   import ThemeMascot from "./ThemeMascot.svelte";
   import { theme } from "$lib";
-  import { isSupporter, setSupporter, redeemCode, LIMITS } from "$lib/services/supporterService.js";
+  import {
+    isSupporter,
+    setSupporter,
+    redeemCode,
+    daysRemaining,
+    LIMITS,
+  } from "$lib/services/supporterService.js";
   import { dev } from "$app/environment";
 
   export let open = false;
@@ -12,10 +18,17 @@
 
   let code = "";
   let codeMsg = "";
-  function tryCode() {
-    const ok = redeemCode(code.trim());
-    codeMsg = ok ? "✓ unlocked — thank you!" : "hmm, that code didn't work";
+  let checking = false;
+
+  async function tryCode() {
+    const c = code.trim();
+    if (!c || checking) return;
+    checking = true;
+    codeMsg = "checking…";
+    const ok = await redeemCode(c);
+    codeMsg = ok ? "✓ you're in — thank you!" : "hmm, that code didn't work";
     if (ok) code = "";
+    checking = false;
   }
 </script>
 
@@ -26,15 +39,23 @@
   {#if $isSupporter}
     <div class="thanks-box">
       <p class="thanks">You're a Contributor — thank you! 💜</p>
-      <p class="sub">Bigger files, bigger batches, and first dibs on new tricks are all yours.</p>
+      <p class="sub">
+        {daysRemaining()} days remaining on your pass. Bigger files, bigger
+        batches, and first dibs on new tricks are all yours.
+      </p>
     </div>
     {#if dev}
       <button class="ghost" on:click={() => setSupporter(false)}>(dev) turn off</button>
     {/if}
   {:else}
     <p class="pitch">
-      DrShrink is free and always will be. Contributors chip in <strong>$9/year</strong>
-      to keep it ad-free, tracking-free, and alive — and get more room to work.
+      DrShrink is free and always will be. Chip in <strong>$9/year</strong>
+      and you get more room to work — plus our undying gratitude.
+      <a
+        class="kofi"
+        href="https://ko-fi.com/madebypablo"
+        target="_blank"
+        rel="noopener noreferrer">☕ Support on Ko-fi</a>
     </p>
 
     <ul class="perks">
@@ -44,9 +65,14 @@
       <li>A warm fuzzy feeling, and our thanks 💜</li>
     </ul>
 
-    <button class="cta" on:click={() => alert("Checkout coming soon!")}>
+    <a
+      class="cta"
+      href="https://ko-fi.com/madebypablo"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       Become a Contributor — $9/yr
-    </button>
+    </a>
 
     <div class="code">
       <label for="contrib-code">Have a contributor code?</label>
@@ -55,10 +81,10 @@
           id="contrib-code"
           type="text"
           bind:value={code}
-          placeholder="words-go-here"
+          placeholder="DS-word-word-word-word"
           on:keydown={(e) => e.key === "Enter" && tryCode()}
         />
-        <button class="redeem" on:click={tryCode} disabled={!code.trim()}>Redeem</button>
+        <button class="redeem" on:click={tryCode} disabled={!code.trim() || checking}>Redeem</button>
       </div>
       {#if codeMsg}<p class="code-msg">{codeMsg}</p>{/if}
       <p class="code-hint">Codes are for gifts and your other devices.</p>
@@ -75,6 +101,14 @@
 <style>
   .pitch { margin-bottom: 0.9rem; }
   .pitch strong { color: var(--ds-ink, #1f2937); }
+  .kofi {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ds-accent-color, #c026d3);
+  }
+  .kofi:hover { text-decoration: underline; }
   .perks {
     margin: 0 0 1.1rem;
     display: flex;
@@ -96,7 +130,10 @@
   .perks strong { color: var(--ds-ink, #1f2937); }
   .vs { color: #9b9199; font-size: 0.85em; }
   .cta {
+    display: inline-block;
     width: 100%;
+    text-align: center;
+    text-decoration: none;
     border-radius: 999px;
     background: var(--ds-primary-color, #9333ea);
     color: #fff;

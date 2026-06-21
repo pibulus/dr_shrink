@@ -1,5 +1,6 @@
 <script>
   import { createEventDispatcher, onDestroy } from "svelte";
+  import { isSupporter } from "$lib/services/supporterService.js";
 
   const dispatch = createEventDispatcher();
   const btn =
@@ -47,8 +48,8 @@
   <button type="button" class={btn} on:click={() => dispatch("showOptions")}>
     Options
   </button>
-  <button type="button" class={btn} on:click={() => dispatch("showUnlock")}>
-    Unlock
+  <button type="button" class={btn} on:click={() => dispatch("showSupport")}>
+    {$isSupporter ? "Contributor ✓" : "Support"}
   </button>
   <button type="button" class={btn} on:click={shareApp} aria-label="Share DrShrink">
     Share

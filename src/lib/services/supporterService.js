@@ -1,15 +1,22 @@
 // ===================================================================
-// SUPPORTER — $9/yr stub (gate structure now, real payments later)
+// SUPPORTER — $9/yr contributor pass (trust-based, client-side)
 // ===================================================================
 //
-// No payment integration yet. `isSupporter` is a localStorage flag so the
-// gating structure exists and limits are easy to tune. Wire a real checkout +
-// license check in a later pass; the rest of the app already respects these.
+// No DRM, no server. Contributor gets a code → enters it → SHA-256
+// checked against a pre-computed whitelist → localStorage flag + 365-day
+// expiry. Codes are unguessable (48 bits) and hashes don't reveal them.
+//
+// Generate new codes with:  node tools/generate-codes.mjs
+// The script prints each code + its SHA-256 hash. Give the CODE to the
+// contributor; paste the HASH into VALID_CODE_HASHES below and deploy.
 
 import { writable } from "svelte/store";
-import { browser, dev } from "$app/environment";
+import { browser } from "$app/environment";
 
 const KEY = "drshrink-supporter";
+const KEY_EXPIRES = "drshrink-supporter-expires";
+const CODE_PREFIX = "DS-";
+const SUPPORTER_TERM_MS = 365 * 24 * 60 * 60 * 1000; // 365 days
 
 // Limits — centralized so they're trivial to adjust.
 export const LIMITS = {
@@ -18,43 +25,88 @@ export const LIMITS = {
     maxBatch: 5, // files per drop
   },
   supporter: {
-    maxFileBytes: 500 * 1024 * 1024, // 500 MB per file
-    maxBatch: 200,
+    maxFileBytes: 100 * 1024 * 1024, // 100 MB per file (realistic for WASM)
+    maxBatch: 25, // files per drop
   },
 };
 
 function readInitial() {
   if (!browser) return false;
-  return localStorage.getItem(KEY) === "true";
+  const flag = localStorage.getItem(KEY) === "true";
+  if (!flag) return false;
+  // Check expiry
+  const raw = localStorage.getItem(KEY_EXPIRES);
+  if (raw && Date.now() > parseInt(raw, 10)) {
+    // Expired — clear the flag
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(KEY_EXPIRES);
+    return false;
+  }
+  return true;
 }
 
 export const isSupporter = writable(readInitial());
 
 export function setSupporter(on) {
-  if (browser) localStorage.setItem(KEY, on ? "true" : "false");
+  if (browser) {
+    if (on) {
+      localStorage.setItem(KEY, "true");
+    } else {
+      localStorage.removeItem(KEY);
+      localStorage.removeItem(KEY_EXPIRES);
+    }
+  }
   isSupporter.set(!!on);
 }
 
-// Contributor codes (gifts / your other devices). Placeholder until real
-// codes are issued — accepts a small set for now. Real validation lands with
-// the payment integration.
-const VALID_CODES = new Set([
-  "drshrink-friend",
-  "shrinkydink",
-  "pablo-sent-me",
+// ── Code validation ────────────────────────────────────────────────
+
+// Pre-computed SHA-256 hashes of valid contributor codes.
+// Format: DS-XXXX-XXXX-XXXX  (12 hex chars, 48-bit entropy).
+// Generate new hashes with:  node tools/generate-codes.mjs
+const VALID_CODE_HASHES = new Set([
+  // --- paste generated hashes below ---
+  // "a1b2c3d4e5f6...",
 ]);
 
-/** Try to redeem a contributor code. Returns true if it unlocked supporter. */
-export function redeemCode(code) {
-  // Placeholder codes disabled in production — real validation lands with
-  // payment integration. In dev mode the hardcoded set still works for testing.
-  if (!dev) return false;
-  const c = (code || "").trim().toLowerCase();
-  if (VALID_CODES.has(c)) {
-    setSupporter(true);
+/**
+ * SHA-256 hash of a normalized contributor code.
+ * Uses Web Crypto (available in secure contexts — HTTPS or localhost).
+ */
+async function hashCode(code) {
+  if (!browser) return "";
+  const normalized = (code || "").trim().toUpperCase();
+  const buf = new TextEncoder().encode(normalized);
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Try to redeem a contributor code. Returns true if it activated supporter. */
+export async function redeemCode(code) {
+  if (!browser) return false;
+  const c = (code || "").trim().toUpperCase();
+  if (!c.startsWith(CODE_PREFIX)) return false;
+
+  const hash = await hashCode(c);
+  if (VALID_CODE_HASHES.has(hash)) {
+    const expires = Date.now() + SUPPORTER_TERM_MS;
+    localStorage.setItem(KEY, "true");
+    localStorage.setItem(KEY_EXPIRES, String(expires));
+    isSupporter.set(true);
     return true;
   }
   return false;
+}
+
+/** Days remaining on the current contributor pass, or 0. */
+export function daysRemaining() {
+  if (!browser) return 0;
+  const raw = localStorage.getItem(KEY_EXPIRES);
+  if (!raw) return 0;
+  const remaining = parseInt(raw, 10) - Date.now();
+  return Math.max(0, Math.ceil(remaining / (24 * 60 * 60 * 1000)));
 }
 
 /** Current limits for the given supporter state. */
@@ -64,7 +116,7 @@ export function limitsFor(supporter) {
 
 /**
  * Check a drop against the limits. Returns { ok, reason } — reason is a
- * user-facing string + a flag so the UI can nudge toward Unlock.
+ * user-facing string + a flag so the UI can nudge toward Support.
  */
 export function checkDrop(files, supporter) {
   const lim = limitsFor(supporter);
@@ -72,7 +124,7 @@ export function checkDrop(files, supporter) {
     return {
       ok: false,
       gated: true,
-      reason: `Free plan handles ${lim.maxBatch} files at once. Unlock for up to ${LIMITS.supporter.maxBatch}.`,
+      reason: `Free plan handles ${lim.maxBatch} files at once. Support the doc for up to ${LIMITS.supporter.maxBatch}.`,
     };
   }
   const tooBig = files.find((f) => f.size > lim.maxFileBytes);
@@ -81,7 +133,7 @@ export function checkDrop(files, supporter) {
     return {
       ok: false,
       gated: true,
-      reason: `"${tooBig.name}" is over the ${mb} MB free limit. Unlock for bigger files.`,
+      reason: `"${tooBig.name}" is over the ${mb} MB free limit. Support the doc for bigger files.`,
     };
   }
   return { ok: true };

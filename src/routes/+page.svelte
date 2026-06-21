@@ -11,7 +11,7 @@
   import { cacheId, putCache } from "$lib/services/blobCache.js";
   import { theme } from "$lib";
   import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
-  import UnlockModal from "$lib/components/UnlockModal.svelte";
+  import SupporterModal from "$lib/components/SupporterModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
   import ShrinkConfetti from "$lib/components/ShrinkConfetti.svelte";
@@ -51,7 +51,7 @@
   let catching = false; // brief catch animation on drop
   let pulseInterval = null; // rhythmic pulse during processing
   let error = "";
-  let showUnlock = false;
+  let showSupport = false;
   let showAbout = false;
   let showOptions = false;
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
@@ -185,7 +185,7 @@
     if (!gate.ok) {
       error = gate.reason;
       soundError();
-      if (gate.gated) showUnlock = true;
+      if (gate.gated) showSupport = true;
       return;
     }
 
@@ -444,7 +444,7 @@
     <FooterComponent
       on:showAbout={() => (showAbout = true)}
       on:showOptions={() => (showOptions = true)}
-      on:showUnlock={() => (showUnlock = true)}
+      on:showSupport={() => (showSupport = true)}
     />
   </svelte:fragment>
 </PageLayout>
@@ -456,7 +456,7 @@
   {autoDownload}
   onToggleAuto={toggleAutoDownload}
 />
-<UnlockModal open={showUnlock} on:close={() => (showUnlock = false)} />
+<SupporterModal open={showSupport} on:close={() => (showSupport = false)} />
 
 <ShrinkConfetti bind:this={confetti} />
 

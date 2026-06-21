@@ -14,6 +14,7 @@
   import SupporterModal from "$lib/components/SupporterModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
+  import IntroModal from "$lib/components/IntroModal.svelte";
   import ShrinkConfetti from "$lib/components/ShrinkConfetti.svelte";
   import {
     history,
@@ -21,7 +22,7 @@
     clearHistory,
     retryDownload,
   } from "$lib/services/historyService.js";
-  import { tick, onDestroy } from "svelte";
+  import { tick, onDestroy, onMount } from "svelte";
   import { browser } from "$app/environment";
   import {
     soundDrop,
@@ -54,6 +55,19 @@
   let showSupport = false;
   let showAbout = false;
   let showOptions = false;
+  let showIntro = false;
+
+  // First-visit intro — same localStorage pattern as the sibling apps
+  // (cryptkeep's "seen_intro" / daysay's FIRST_VISIT). Shows once, then never
+  // again. Reopenable any time via the footer's "about" entry.
+  onMount(() => {
+    if (!localStorage.getItem("drshrink:seen_intro")) showIntro = true;
+  });
+
+  function dismissIntro() {
+    showIntro = false;
+    localStorage.setItem("drshrink:seen_intro", "true");
+  }
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
   let autoDownload = browser
@@ -449,6 +463,7 @@
   </svelte:fragment>
 </PageLayout>
 
+<IntroModal open={showIntro} on:close={dismissIntro} />
 <AboutModal open={showAbout} on:close={() => (showAbout = false)} />
 <OptionsModal 
   open={showOptions} 

@@ -2,6 +2,7 @@
   // Title/description/OG live in app.html (single source of truth) — the layout
   // intentionally does NOT emit a <title> to avoid duplicate head tags.
   export let footerYear = new Date().getFullYear();
+  export let appName = 'DrShrink';
 </script>
 
 <a class="skip-link" href="#main-content">Skip to content</a>
@@ -17,17 +18,22 @@
   </main>
 
   <footer
-    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs text-gray-600 backdrop-blur-[3px] sm:pb-4 sm:pt-5"
+    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs backdrop-blur-[3px] sm:pb-4 sm:pt-5"
   >
     <div
       class="container mx-auto flex flex-row items-center justify-center gap-1 sm:justify-between sm:gap-3"
     >
       <div class="ml-4 hidden flex-wrap items-center sm:ml-6 sm:flex">
-        <span class="mr-1 text-sm font-medium text-gray-500">
-          © {footerYear} DrShrink
+        <span class="mr-1 text-sm font-medium">
+          © {footerYear} {appName}
         </span>
         <span class="footer-dot mx-2">•</span>
-        <span class="text-sm font-light text-gray-600">Melbourne</span>
+        <span class="text-sm font-light">
+          <span
+            class="footer-heart animate-pulse transition-transform hover:scale-110"
+            aria-label="love">❤️</span
+          > in Melbourne
+        </span>
       </div>
       <div class="flex items-center sm:mr-6">
         <slot name="footer-buttons" />
@@ -55,13 +61,31 @@
   }
 
   .ds-app-footer {
-    background: rgba(var(--ds-footer-surface-rgb, 255, 255, 255), 0.75);
-    border-color: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.14);
+    color: var(--footer-text-color, #4b5563);
+    background: var(
+      --footer-bg,
+      rgba(var(--ds-footer-surface-rgb, 255, 255, 255), 0.75)
+    );
+    border-color: var(
+      --footer-border-color,
+      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.14)
+    );
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 
   .footer-dot {
-    color: var(--ds-accent-color, #c026d3);
+    color: var(--footer-dot-color, var(--ds-accent-color, #c026d3));
+  }
+
+  .footer-heart {
+    color: var(--footer-heart-color, var(--ds-accent-color, #c026d3));
+    display: inline-block;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .footer-heart {
+      animation: none;
+    }
   }
 
   .skip-link {

@@ -7,7 +7,7 @@
 // contributor; paste the HASH into the VALID_CODE_HASHES Set in
 // src/lib/services/supporterService.js.
 //
-// Codes are word phrases:  DS-word-word-word
+// Codes are word phrases:  DS-word-word-word-word
 // Easy to type, fun to say, ~10^10 combinations.
 
 import crypto from "node:crypto";

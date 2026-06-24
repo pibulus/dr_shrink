@@ -240,7 +240,9 @@ async function getFFmpeg(onProgress) {
   const { toBlobURL } = await import("@ffmpeg/util");
   const ff = new FFmpeg();
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(progress));
-  const base = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
+  // WASM self-hosted from /wasm/ — keeps user data off CDN servers and
+  // allows the COEP require-corp header (unpkg won't serve under it).
+  const base = "/wasm";
   await ff.load({
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),

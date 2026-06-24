@@ -4,7 +4,8 @@
 //
 // No DRM, no server. Contributor gets a code → enters it → SHA-256
 // checked against a pre-computed whitelist → localStorage flag + 365-day
-// expiry. Codes are unguessable (48 bits) and hashes don't reveal them.
+// expiry. Codes are 4-word phrases (DS-word-word-word-word, ~33-bit entropy)
+// and hashes don't reveal them.
 //
 // Generate new codes with:  node tools/generate-codes.mjs
 // The script prints each code + its SHA-256 hash. Give the CODE to the
@@ -62,7 +63,7 @@ export function setSupporter(on) {
 // ── Code validation ────────────────────────────────────────────────
 
 // Pre-computed SHA-256 hashes of valid contributor codes.
-// Format: DS-XXXX-XXXX-XXXX  (12 hex chars, 48-bit entropy).
+// Format: DS-word-word-word-word  (4-word phrase from a 323-word list, ~33-bit entropy).
 // Generate new hashes with:  node tools/generate-codes.mjs
 const VALID_CODE_HASHES = new Set([
   // --- paste generated hashes below ---

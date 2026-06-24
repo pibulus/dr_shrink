@@ -24,6 +24,7 @@ import { mascotState } from "../stores/mascotState.js";
 const timers = {
   blinkTimeoutId: null,
   thinkingIntervalId: null,
+  blinkOpenTimeoutId: null,
 };
 
 // Blinking state
@@ -88,6 +89,11 @@ export function initBlinking(elements, config = {}) {
       ) {
         clearInterval(timers.thinkingIntervalId);
         timers.thinkingIntervalId = null;
+
+        if (timers.blinkOpenTimeoutId) {
+          clearTimeout(timers.blinkOpenTimeoutId);
+          timers.blinkOpenTimeoutId = null;
+        }
 
         // Ensure eyes are open when leaving thinking state
         if (state.eyesClosed) {
@@ -289,10 +295,14 @@ export function applyRhythmicBlinkEffect(elements) {
     timers.blinkTimeoutId = null;
   }
 
-  // Always clear previous thinking interval before creating a new one
+  // Always clear previous thinking interval and blink-open timeout before creating new ones
   if (timers.thinkingIntervalId) {
     clearInterval(timers.thinkingIntervalId);
     timers.thinkingIntervalId = null;
+  }
+  if (timers.blinkOpenTimeoutId) {
+    clearTimeout(timers.blinkOpenTimeoutId);
+    timers.blinkOpenTimeoutId = null;
   }
 
   // Set up rhythmic blinking pattern
@@ -302,7 +312,9 @@ export function applyRhythmicBlinkEffect(elements) {
     applyEyeTransforms(leftEye, rightEye);
 
     // Open after duration
-    setTimeout(() => {
+    timers.blinkOpenTimeoutId = setTimeout(() => {
+      timers.blinkOpenTimeoutId = null;
+
       // Only open if still in thinking state
       const currentState = get(mascotState);
       if (currentState.current === ANIMATION_STATES.THINKING) {
@@ -408,6 +420,11 @@ export function cleanupBlinking() {
   if (timers.thinkingIntervalId) {
     clearInterval(timers.thinkingIntervalId);
     timers.thinkingIntervalId = null;
+  }
+
+  if (timers.blinkOpenTimeoutId) {
+    clearTimeout(timers.blinkOpenTimeoutId);
+    timers.blinkOpenTimeoutId = null;
   }
 
   // Clear all other timers

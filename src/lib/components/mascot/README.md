@@ -96,7 +96,10 @@ cp -r src/lib/components/mascot /path/to/other-app/src/lib/components/
   contract so sister apps read the same visible-ink size side by side. Set them
   on a parent to resize without forking the breakpoints:
   ```css
-  :global(.my-app) { --mascot-size-mobile: 110px; --mascot-size-lg: 160px; }
+  :global(.my-app) {
+    --mascot-size-mobile: 110px;
+    --mascot-size-lg: 160px;
+  }
   ```
   If unset, the inline `width`/`height` props win (byte-identical to before).
 - **`aura`** — soft idle pulse-ring affordance; tune with `--mascot-aura-color-1/2/3`,

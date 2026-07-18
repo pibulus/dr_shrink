@@ -1,4 +1,5 @@
 <script>
+  import { notePwaMoment } from "$lib/components/PwaInstallCard.svelte";
   import { Mascot } from "$lib/components/mascot";
   import PageLayout from "$lib/components/layout/PageLayout.svelte";
   import AnimatedTitle from "$lib/components/AnimatedTitle.svelte";
@@ -249,6 +250,7 @@
         celebrate(); // 🎊 emoji confetti from the doctor
       }
       soundDone(ratioSaved);
+      notePwaMoment(); // a finished shrink earns the install suggestion
       popMascot(ratioSaved, bigWin);
       countUpTo(results.reduce((a, r) => a + Math.max(0, r.saved), 0));
     } catch (e) {

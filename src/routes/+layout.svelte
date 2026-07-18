@@ -10,6 +10,7 @@
   } from "$lib/components/mascot";
   import { drShrinkThemes } from "$lib/mascotThemes.js";
   import { theme, applyTheme } from "$lib";
+  import PwaInstallCard from "$lib/components/PwaInstallCard.svelte";
   import { DEFAULT_THEME } from "$lib/constants.js";
 
   // Register DrShrink's mascot palettes (keyed to the app theme names).
@@ -32,3 +33,10 @@
 </svg>
 
 <slot />
+
+<PwaInstallCard
+  appName="DrShrink"
+  tagline="Drop a file, get a smaller one."
+  iconSrc="/icon-192.png"
+  storagePrefix="drshrink"
+/>

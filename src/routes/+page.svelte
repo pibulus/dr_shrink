@@ -169,7 +169,8 @@
 
   async function popMascot(ratioSaved, isBig) {
     // big wins bounce harder, on top of the ratio scaling
-    popScale = 1 + Math.max(0, Math.min(1, ratioSaved)) * 0.18 + (isBig ? 0.12 : 0);
+    popScale =
+      1 + Math.max(0, Math.min(1, ratioSaved)) * 0.18 + (isBig ? 0.12 : 0);
     popping = false;
     await tick(); // drop the class so re-adding it restarts the animation
     popping = true;
@@ -287,11 +288,13 @@
 </script>
 
 <PageLayout>
-  <div class="flex w-full flex-col items-center gap-8">
+  <!-- gap-8→gap-5/6: the hero must land mascot + title + drop zone inside ONE
+       viewport on a 1280×800 desktop — first impressions never scroll. -->
+  <div class="flex w-full flex-col items-center gap-5 md:gap-6">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={mascotSlotEl}
-      class="mascot-slot h-44 w-44 sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-64 lg:w-64"
+      class="mascot-slot h-44 w-44 sm:h-48 sm:w-48 md:h-52 md:w-52 lg:h-56 lg:w-56"
       class:squeezing
       class:popping
       class:catching
@@ -378,7 +381,9 @@
     </label>
 
     {#if error}
-      <p class="rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500">
+      <p
+        class="rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500"
+      >
         {error}
       </p>
     {/if}
@@ -423,8 +428,8 @@
           <span>Recent ({$history.length})</span>
           <button
             class="clear"
-            on:click|preventDefault|stopPropagation={clearHistory}
-          >clear</button>
+            on:click|preventDefault|stopPropagation={clearHistory}>clear</button
+          >
         </summary>
         <ul>
           {#each $history as h}
@@ -444,14 +449,14 @@
                     e.stopPropagation();
                     const cached = await retryDownload(h);
                     if (cached) downloadBlob(cached.blob, cached.name);
-                  }}>↓</button>
+                  }}>↓</button
+                >
               {/if}
             </li>
           {/each}
         </ul>
       </details>
     {/if}
-
   </div>
 
   <svelte:fragment slot="footer-buttons">
@@ -465,9 +470,9 @@
 
 <IntroModal open={showIntro} on:close={dismissIntro} />
 <AboutModal open={showAbout} on:close={() => (showAbout = false)} />
-<OptionsModal 
-  open={showOptions} 
-  on:close={() => (showOptions = false)} 
+<OptionsModal
+  open={showOptions}
+  on:close={() => (showOptions = false)}
   {autoDownload}
   onToggleAuto={toggleAutoDownload}
 />
@@ -476,10 +481,23 @@
 <ShrinkConfetti bind:this={confetti} />
 
 <style>
+  /* Short desktop viewports (squat laptops, ~1280×690): compress the hero
+     ramp further so the drop zone always lands above the fold. */
+  @media (min-width: 768px) and (max-height: 740px) {
+    .mascot-slot {
+      height: 10rem !important;
+      width: 10rem !important;
+    }
+    .drop {
+      min-height: 140px;
+    }
+  }
+
   .mascot-slot {
-    /* big hero mascot, matching talktype/ziplist — canonical responsive ramp:
-       h-44 w-44 → lg:h-64/w-64 (~176px base → 256px desktop) via Tailwind classes
-       in the markup. Inner Mascot SVG fills 100% of the slot. */
+    /* big hero mascot, matching talktype/ziplist — responsive ramp:
+       h-44 w-44 → lg:h-56/w-56 (~176px base → 224px desktop) via Tailwind
+       classes in the markup. Kept below the old 256px so the whole hero +
+       drop zone fits a 1280×800 viewport. Inner SVG fills 100% of the slot. */
     position: relative;
     transform-origin: center bottom;
     will-change: transform;
@@ -515,13 +533,17 @@
       filter: drop-shadow(
           0 0 12px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.4)
         )
-        drop-shadow(0 0 22px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.22));
+        drop-shadow(
+          0 0 22px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.22)
+        );
     }
     50% {
       filter: drop-shadow(
           0 0 22px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7)
         )
-        drop-shadow(0 0 38px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.4));
+        drop-shadow(
+          0 0 38px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.4)
+        );
     }
   }
 
@@ -532,7 +554,9 @@
         0 0 24px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.75)
       )
       drop-shadow(0 0 48px rgba(var(--ds-accent-color-rgb, 192, 38, 211), 0.5))
-      drop-shadow(0 0 72px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.25));
+      drop-shadow(
+        0 0 72px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.25)
+      );
     transition:
       transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
       filter 0.28s ease;
@@ -626,7 +650,10 @@
       transform: scale(0.92, 1.06);
     }
     45% {
-      transform: scale(var(--pop-scale, 1.12), calc(2 - var(--pop-scale, 1.12)));
+      transform: scale(
+        var(--pop-scale, 1.12),
+        calc(2 - var(--pop-scale, 1.12))
+      );
     }
     100% {
       transform: scale(1, 1);

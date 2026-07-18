@@ -2,7 +2,8 @@
   import { AppSuffix } from "$lib/components/ui";
 
   export let title = "DrShrink";
-  export let subtitle = "Drop a file in, get a smaller one out. No settings, no fuss.";
+  export let subtitle =
+    "Drop a file in, get a smaller one out. No settings, no fuss.";
   export let showAppSuffix = true;
 
   $: titleCharacters = Array.from(title);
@@ -14,7 +15,7 @@
 
 <div class="title-container relative">
   <h1
-    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl lg:text-8xl xl:text-9xl"
+    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl lg:text-8xl"
     aria-label={title}
   >
     <span class="title-main-word">
@@ -140,6 +141,27 @@
   :global(.title-suffix) {
     letter-spacing: 0;
     font-variation-settings: inherit;
+  }
+
+  /* Slightly-short desktop viewports (e.g. 1024×768): trim the subtitle's
+     air first — cheapest 10px, invisible to the eye. */
+  @media (min-width: 768px) and (max-height: 790px) {
+    .slide-in-subtitle {
+      margin-bottom: 0.875rem;
+    }
+  }
+
+  /* Short desktop viewports: pull the title down a size so the hero +
+     drop zone stay inside one screen. */
+  @media (min-width: 768px) and (max-height: 740px) {
+    h1.staggered-text {
+      font-size: 3.5rem;
+      line-height: 1.05;
+    }
+    .slide-in-subtitle {
+      margin-top: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
   }
 
   @media (max-width: 640px) {

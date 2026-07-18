@@ -378,7 +378,7 @@
     </label>
 
     {#if error}
-      <p class="rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600">
+      <p class="rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500">
         {error}
       </p>
     {/if}

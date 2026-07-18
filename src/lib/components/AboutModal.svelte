@@ -13,7 +13,9 @@
   let closing = false;
   let prefersReduced = false;
   if (typeof window !== "undefined" && window.matchMedia) {
-    prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    prefersReduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
   }
 
   function close() {
@@ -23,10 +25,11 @@
       return;
     }
     closing = true;
+    // Matches the 180ms close animation in this file's <style>.
     setTimeout(() => {
       closing = false;
       dispatch("close");
-    }, 240);
+    }, 180);
   }
 
   function onKeydown(e) {
@@ -37,12 +40,7 @@
 <svelte:window on:keydown={open ? onKeydown : undefined} />
 
 {#if open}
-  <div
-    class="overlay"
-    class:closing
-    role="presentation"
-    on:click={close}
-  >
+  <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
       class="box"
       class:closing
@@ -64,9 +62,9 @@
 
       <div class="body space-y-4">
         <p class="lede">
-          DrShrink takes the thing you drop and hands back something smaller and more
-          useful. No settings, no sign-up, no upload — it all happens right here in
-          your browser.
+          DrShrink takes the thing you drop and hands back something smaller and
+          more useful. No settings, no sign-up, no upload — it all happens right
+          here in your browser.
         </p>
 
         <h4>What it does:</h4>
@@ -80,7 +78,8 @@
         <p class="quote">"Drop it. Shrink it. Done."</p>
 
         <p class="privacy">
-          🔒 Your files never leave your device. Nothing is uploaded, logged, or kept.
+          🔒 Your files never leave your device. Nothing is uploaded, logged, or
+          kept.
         </p>
 
         <!-- SKELETON link set 4/4: mascot icon + GitHub (bare profile) + Ko-fi + privacy one-liner -->
@@ -136,7 +135,7 @@
     animation: ds-fade 0.18s ease-out;
   }
   .overlay.closing {
-    animation: ds-fade-out 0.22s ease-in forwards;
+    animation: ds-fade-out 0.18s ease-out forwards;
   }
 
   /* ── SKELETON: frame — centered card, max-width 380px, radius 24px ── */
@@ -151,10 +150,10 @@
     background: linear-gradient(135deg, #fffaef, var(--ds-bg, #fff6e6));
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
     padding: 1.6rem 1.5rem 1.35rem;
-    animation: ds-pop-up 0.32s cubic-bezier(0.19, 1, 0.22, 1);
+    animation: ds-pop-up 0.28s cubic-bezier(0.16, 0.84, 0.24, 1.06);
   }
   .box.closing {
-    animation: ds-pop-down 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: ds-pop-down 0.18s cubic-bezier(0.4, 0, 0.24, 1) forwards;
   }
 
   /* ── SKELETON: X button — 44px circular, top-right 1rem, scale-hover, focus ring ── */
@@ -172,7 +171,10 @@
     line-height: 1;
     color: #b3a99c;
     background: transparent;
-    transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+    transition:
+      color 0.15s ease,
+      transform 0.15s ease,
+      background 0.15s ease;
   }
   .x:hover {
     color: var(--ds-ink, #1f2937);
@@ -209,7 +211,9 @@
   }
 
   /* SKELETON: spacing rhythm 3 → 4 */
-  .space-y-4 > * + * { margin-top: 1rem; }
+  .space-y-4 > * + * {
+    margin-top: 1rem;
+  }
 
   .lede {
     background: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.08);
@@ -222,16 +226,28 @@
     font-size: 0.9rem;
     color: var(--ds-ink, #1f2937);
   }
-  .list { display: flex; flex-direction: column; gap: 0.35rem; }
-  .list li { display: flex; gap: 0.5rem; }
-  .list span { color: var(--ds-accent-color, #c026d3); }
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .list li {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .list span {
+    color: var(--ds-accent-color, #c026d3);
+  }
   .quote {
     border-left: 3px solid rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.4);
     padding-left: 0.9rem;
     font-style: italic;
     color: #6b6671;
   }
-  .privacy { font-size: 0.85rem; color: #6b6671; }
+  .privacy {
+    font-size: 0.85rem;
+    color: #6b6671;
+  }
 
   /* ── SKELETON link set: ~44px tap targets ── */
   .links {
@@ -249,7 +265,9 @@
     color: var(--ds-accent-color, #c026d3);
     font-weight: 600;
   }
-  .links a:hover { text-decoration: underline; }
+  .links a:hover {
+    text-decoration: underline;
+  }
   .links a:focus-visible {
     outline: 2px solid var(--ds-accent-color, #c026d3);
     outline-offset: 2px;
@@ -261,7 +279,10 @@
     justify-content: center;
     transition: transform 0.15s ease;
   }
-  .link-icon:hover { transform: scale(1.1); text-decoration: none; }
+  .link-icon:hover {
+    transform: scale(1.1);
+    text-decoration: none;
+  }
 
   .foot {
     display: flex;
@@ -271,48 +292,44 @@
     padding-top: 0.3rem;
   }
 
-  /* ── SKELETON: mobile bottom-sheet below 640px ── */
-  @media (max-width: 639px) {
-    .overlay {
-      align-items: flex-end;
-      padding: 0;
-    }
-    .box {
-      max-width: 100%;
-      max-height: 90dvh;
-      border-radius: 24px 24px 0 0;
-      border-bottom: 0;
-      padding-bottom: calc(1.35rem + env(safe-area-inset-bottom, 0px));
-      animation: ds-sheet-up 0.36s cubic-bezier(0.18, 0.92, 0.2, 1.08);
-    }
-    .box.closing {
-      animation: ds-sheet-down 0.24s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-    }
-  }
+  /* Centered floating card at every breakpoint — no mobile bottom sheet. */
 
   @keyframes ds-fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes ds-fade-out {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
+  /* Rise with one small overshoot (the 1.06 ease), no rotation. */
   @keyframes ds-pop-up {
-    from { opacity: 0; transform: translateY(10px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
   @keyframes ds-pop-down {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(8px) scale(0.98); }
-  }
-  @keyframes ds-sheet-up {
-    from { opacity: 0; transform: translateY(100%); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes ds-sheet-down {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(100%); }
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
   }
 
   /* SKELETON: prefers-reduced-motion — instant, no transitions */

@@ -3,8 +3,8 @@
   // Self-contained (does NOT use the shared Modal.svelte, which the other
   // dialogs use) so it can carry the full shared intro SKELETON without
   // touching siblings: brain mascot slot, 44px circular X, warm-dark blurred
-  // backdrop (tap-to-close), OPEN + CLOSE animation, and a mobile bottom-sheet
-  // below 640px that becomes a centred card above it.
+  // backdrop (tap-to-close), OPEN + CLOSE animation. Centered floating card
+  // at every breakpoint — no bottom sheet.
   // SKIN is pure DrShrink: cream gradient surface, --ds-* tokens, brain mascot,
   // on-voice copy.
   import { createEventDispatcher } from "svelte";
@@ -31,7 +31,8 @@
     }
     closing = true;
     clearTimeout(closeTimer);
-    closeTimer = setTimeout(finishClose, 220);
+    // Matches the 180ms close animation in this file's <style>.
+    closeTimer = setTimeout(finishClose, 180);
   }
 
   function finishClose() {
@@ -51,12 +52,7 @@
 <svelte:window on:keydown={open ? onKeydown : undefined} />
 
 {#if open}
-  <div
-    class="overlay"
-    class:closing
-    role="presentation"
-    on:click={close}
-  >
+  <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
       class="box"
       class:closing
@@ -67,7 +63,9 @@
       on:click|stopPropagation
       on:keydown|stopPropagation
     >
-      <button class="x" type="button" on:click={close} aria-label="Close">×</button>
+      <button class="x" type="button" on:click={close} aria-label="Close"
+        >×</button
+      >
 
       <div class="mascot-slot" aria-hidden="true">
         <Mascot
@@ -111,15 +109,16 @@
     inset: 0;
     z-index: 60;
     display: flex;
-    align-items: flex-end; /* mobile: dock to the bottom (bottom-sheet) */
+    align-items: center; /* centered floating card at every breakpoint */
     justify-content: center;
+    padding: 1rem;
     background: rgba(20, 14, 10, 0.45);
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
     animation: overlayIn 0.18s ease-out;
   }
   .overlay.closing {
-    animation: overlayOut 0.2s ease-in forwards;
+    animation: overlayOut 0.18s ease-out forwards;
   }
 
   /* ── Frame: DrShrink cream gradient skin on the shared skeleton ── */
@@ -127,18 +126,17 @@
     position: relative;
     width: 100%;
     max-width: 420px;
-    max-height: 92vh;
+    max-height: 85vh;
     overflow-y: auto;
-    /* mobile bottom-sheet: full-width docked, rounded top, safe-area inset */
-    border-radius: 24px 24px 0 0;
+    border-radius: 24px;
     border: 1px solid rgba(0, 0, 0, 0.08);
     background: linear-gradient(135deg, #fffaef, var(--ds-bg, #fff6e6));
-    box-shadow: 0 -12px 48px rgba(0, 0, 0, 0.22);
-    padding: 2rem 1.5rem calc(1.6rem + env(safe-area-inset-bottom, 0px));
-    animation: sheetIn 0.34s cubic-bezier(0.19, 1, 0.22, 1);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
+    padding: 2rem 1.5rem 1.6rem;
+    animation: cardIn 0.28s cubic-bezier(0.16, 0.84, 0.24, 1.06);
   }
   .box.closing {
-    animation: sheetOut 0.2s ease-in forwards;
+    animation: cardOut 0.18s cubic-bezier(0.4, 0, 0.24, 1) forwards;
   }
 
   /* ── X button: 44px circular, top-right 1rem inset, scale-hover, focus ring ── */
@@ -158,7 +156,10 @@
     line-height: 1;
     color: #b3a99c;
     cursor: pointer;
-    transition: transform 0.15s ease, color 0.15s ease, background 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      color 0.15s ease,
+      background 0.15s ease;
   }
   .x:hover {
     transform: scale(1.08);
@@ -230,10 +231,16 @@
     font-size: 1.05rem;
     font-weight: 900;
     color: #fff;
-    background: var(--app-suffix-gradient, linear-gradient(to bottom right, #9333ea, #f472b6));
+    background: var(
+      --app-suffix-gradient,
+      linear-gradient(to bottom right, #9333ea, #f472b6)
+    );
     box-shadow: 0 6px 18px rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.32);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease,
+      filter 0.15s ease;
   }
   .cta:hover {
     transform: translateY(-1px);
@@ -248,53 +255,51 @@
     outline-offset: 2px;
   }
 
-  /* ── Above 640px: centred card, all corners rounded, no safe-area inset ── */
-  @media (min-width: 640px) {
-    .overlay {
-      align-items: center;
-      padding: 1rem;
-    }
-    .box {
-      border-radius: 24px;
-      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
-      padding: 2.1rem 1.7rem 1.6rem;
-      animation: cardIn 0.34s cubic-bezier(0.19, 1, 0.22, 1);
-    }
-    .box.closing {
-      animation: cardOut 0.2s ease-in forwards;
-    }
-  }
-
-  /* ── Animations ── */
+  /* ── Animations — rise with one small overshoot (the 1.06 ease), no rotation ── */
   @keyframes overlayIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
   @keyframes overlayOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
-  /* mobile: slide up from / down to the bottom edge */
-  @keyframes sheetIn {
-    from { opacity: 0; transform: translateY(100%); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  @keyframes sheetOut {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(100%); }
-  }
-  /* desktop: gentle rise + fade */
   @keyframes cardIn {
-    from { opacity: 0; transform: translateY(10px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
   @keyframes cardOut {
-    from { opacity: 1; transform: translateY(0) scale(1); }
-    to { opacity: 0; transform: translateY(8px) scale(0.97); }
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
   }
   @keyframes floaty {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
   }
 
   /* ── Reduced motion: instant, no float ── */

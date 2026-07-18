@@ -2,7 +2,7 @@
   // Title/description/OG live in app.html (single source of truth) — the layout
   // intentionally does NOT emit a <title> to avoid duplicate head tags.
   export let footerYear = new Date().getFullYear();
-  export let appName = 'DrShrink';
+  export let appName = "DrShrink";
 </script>
 
 <a class="skip-link" href="#main-content">Skip to content</a>
@@ -18,14 +18,15 @@
   </main>
 
   <footer
-    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs backdrop-blur-[3px] sm:pb-4 sm:pt-5"
+    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs backdrop-blur-[3px] sm:pb-4 sm:pt-5 px-4 sm:px-6 md:px-8"
   >
     <div
-      class="container mx-auto flex flex-row items-center justify-center gap-1 sm:justify-between sm:gap-3"
+      class="footer-row mx-auto flex w-full flex-row items-center justify-center gap-3 sm:justify-between"
     >
-      <div class="ml-4 hidden flex-wrap items-center sm:ml-6 sm:flex">
+      <div class="hidden items-center sm:flex min-w-0 shrink whitespace-nowrap">
         <span class="mr-1 text-sm font-medium">
-          © {footerYear} {appName}
+          © {footerYear}
+          {appName}
         </span>
         <span class="footer-dot mx-2">•</span>
         <span class="text-sm font-light">
@@ -35,7 +36,7 @@
           > in Melbourne
         </span>
       </div>
-      <div class="flex items-center sm:mr-6">
+      <div class="flex shrink-0 items-center">
         <slot name="footer-buttons" />
       </div>
     </div>

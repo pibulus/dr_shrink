@@ -6,7 +6,30 @@
   export let icon = ""; // emoji or short string
 
   const dispatch = createEventDispatcher();
-  const close = () => dispatch("close");
+
+  let closing = false;
+
+  const prefersReducedMotion = () =>
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Close-out animation: hold a closing flag, then dispatch after the exit
+  // anim finishes (instant when reduced-motion is requested). Matches the
+  // family pattern in corruptor/cryptkeep.
+  function close() {
+    if (closing) return;
+    if (prefersReducedMotion()) {
+      dispatch("close");
+      return;
+    }
+    closing = true;
+    // Matches the 180ms close animation in this file's <style>.
+    setTimeout(() => {
+      closing = false;
+      dispatch("close");
+    }, 180);
+  }
 
   function onKeydown(e) {
     if (e.key === "Escape") close();
@@ -16,9 +39,10 @@
 <svelte:window on:keydown={open ? onKeydown : undefined} />
 
 {#if open}
-  <div class="overlay" role="presentation" on:click={close}>
+  <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
       class="box"
+      class:closing
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -59,6 +83,9 @@
     backdrop-filter: blur(3px);
     animation: fade 0.18s ease-out;
   }
+  .overlay.closing {
+    animation: fadeOut 0.18s ease-out forwards;
+  }
   .box {
     width: 100%;
     max-width: 380px;
@@ -70,7 +97,10 @@
     background: linear-gradient(135deg, #fffaef, var(--ds-bg, #fff6e6));
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.22);
     padding: 1.6rem 1.5rem 1.35rem;
-    animation: fadeUp 0.32s cubic-bezier(0.19, 1, 0.22, 1);
+    animation: fadeUp 0.28s cubic-bezier(0.16, 0.84, 0.24, 1.06);
+  }
+  .box.closing {
+    animation: fadeDown 0.18s cubic-bezier(0.4, 0, 0.24, 1) forwards;
   }
   .x {
     position: absolute;
@@ -106,14 +136,47 @@
   }
 
   @keyframes fade {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes fadeOut {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
   }
   @keyframes fadeUp {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(12px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes fadeDown {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(8px) scale(0.97);
+    }
   }
   @media (prefers-reduced-motion: reduce) {
-    .overlay, .box { animation: none; }
+    .overlay,
+    .overlay.closing,
+    .box,
+    .box.closing {
+      animation: none;
+    }
   }
 </style>

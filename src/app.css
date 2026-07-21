@@ -18,3 +18,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Modal scroll-lock — toggled by +page.svelte while any modal is open. */
+body.modal-open {
+  overflow: hidden;
+}

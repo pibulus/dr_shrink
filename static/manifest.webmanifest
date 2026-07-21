@@ -4,8 +4,8 @@
   "description": "Drop a file in, get a smaller one out. Shrink anything the 80/20 way \u2014 no settings, 100% in your browser.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f3e8ff",
-  "theme_color": "#f3e8ff",
+  "background_color": "#fff6e6",
+  "theme_color": "#fff6e6",
   "icons": [
     {
       "src": "/icon-192.png",

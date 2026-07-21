@@ -58,6 +58,13 @@
   let showOptions = false;
   let showIntro = false;
 
+  // Body scroll-lock while any modal is open — one owner (the page holds the
+  // flags), so per-modal instances can't fight over the class. CSS rule:
+  // body.modal-open { overflow: hidden; } in app.css.
+  $: if (typeof document !== "undefined") {
+    document.body.classList.toggle("modal-open", showSupport || showAbout || showOptions || showIntro);
+  }
+
   // First-visit intro — same localStorage pattern as the sibling apps
   // (cryptkeep's "seen_intro" / daysay's FIRST_VISIT). Shows once, then never
   // again. Reopenable any time via the footer's "about" entry.

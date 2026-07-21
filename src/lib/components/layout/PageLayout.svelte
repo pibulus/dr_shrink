@@ -18,7 +18,7 @@
   </main>
 
   <footer
-    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs backdrop-blur-[3px] sm:pb-4 sm:pt-5 px-4 sm:px-6 md:px-8"
+    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs sm:pb-4 sm:pt-5 px-4 sm:px-6 md:px-8"
   >
     <div
       class="footer-row mx-auto flex w-full flex-row items-center justify-center gap-3 sm:justify-between"
@@ -83,13 +83,28 @@
     color: var(--footer-text-color, #4b5563);
     background: var(
       --footer-bg,
-      rgba(var(--ds-footer-surface-rgb, 255, 255, 255), 0.75)
+      rgba(var(--ds-footer-surface-rgb, 255, 255, 255), 0.82)
     );
     border-color: var(
       --footer-border-color,
       rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.14)
     );
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+    /* Fleet-standard frosted footer (2026-07-21) — same values across
+       ziplist / talktype / daysay / riffrap / dr_shrink. Declared in CSS
+       rather than a backdrop-blur-* utility so it can't be dropped by a
+       later class shuffle. 3px was too weak to frost anything; 14px +
+       saturation is what makes it read as glass instead of a thin veil. */
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+
+  /* No backdrop-filter support: go nearly opaque. The translucency only
+     earns its keep when a blur is actually frosting what's behind it. */
+  @supports not (backdrop-filter: blur(1px)) {
+    .ds-app-footer {
+      background: rgba(var(--ds-footer-surface-rgb, 255, 246, 230), 0.97);
+    }
   }
 
   .footer-dot {

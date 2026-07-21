@@ -8,7 +8,7 @@
 <a class="skip-link" href="#main-content">Skip to content</a>
 
 <div
-  class="bg-gradient-mesh page-shell grid min-h-[100dvh] gap-8 px-4 py-6 pt-[clamp(2.75rem,8vh,5.5rem)] font-sans text-gray-800 antialiased sm:px-6 md:px-10"
+  class="bg-gradient-mesh page-shell grid min-h-[100dvh] gap-8 px-4 py-6 pt-[clamp(4rem,12vh,8rem)] font-sans text-gray-800 antialiased sm:px-6 md:px-10"
 >
   <main
     id="main-content"
@@ -47,6 +47,24 @@
   .page-shell {
     /* reserve room for the fixed footer (matches ZipList's tuned values) */
     padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  @media (max-width: 640px) {
+    .page-shell {
+      padding-top: max(env(safe-area-inset-top), clamp(4rem, 10svh, 5.5rem)) !important;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+  }
+  @media (min-width: 1024px) {
+    .page-shell {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      padding-top: 15vh !important;
+    }
   }
 
   .bg-gradient-mesh {

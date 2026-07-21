@@ -15,7 +15,7 @@
 
 <div class="title-container relative">
   <h1
-    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-5xl font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0] sm:text-6xl md:text-7xl lg:text-8xl"
+    class="staggered-text title-ink mb-1 cursor-default select-none text-center text-[clamp(3rem,9vmin_+_1.1rem,8rem)] font-black tracking-normal [font-feature-settings:'kern'_1] [font-kerning:normal] [font-variation-settings:'wght'_900,'opsz'_32] [letter-spacing:0]"
     aria-label={title}
   >
     <span class="title-main-word">
@@ -49,7 +49,7 @@
 </div>
 
 <p
-  class="slide-in-subtitle mx-auto mb-6 mt-3 max-w-prose cursor-default select-none text-center text-base font-medium leading-relaxed tracking-normal text-gray-600 sm:mt-4 sm:text-lg"
+  class="slide-in-subtitle mx-auto mb-6 mt-3 max-w-prose cursor-default select-none text-center text-sm font-medium leading-relaxed tracking-normal text-gray-600 sm:mb-7 sm:mt-6 sm:text-lg sm:font-normal sm:text-gray-700/85 md:text-xl lg:text-2xl"
 >
   {subtitle}
 </p>

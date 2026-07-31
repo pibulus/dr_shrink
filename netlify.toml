@@ -1,0 +1,29 @@
+# Added 2026-07-31 to bring drshrink.app back online. It had been serving
+# Cloudflare 530s (origin unreachable) since the Pi went down for the EliteDesk
+# migration. Its Open Graph tags, og-image.png and icon set were all correct
+# the whole time — there was simply nothing running to serve them, which is why
+# the share card looked broken.
+#
+# DEPLOY_TARGET=netlify is what makes svelte.config.js choose adapter-netlify
+# over adapter-node. It must exist BOTH here and as an environment variable on
+# the Netlify project: set only here, a `netlify deploy --build` from a laptop
+# still produces a Node server bundle that Netlify cannot serve, and the deploy
+# reports success while changing nothing. That exact trap left cryptkeep and
+# corruptor stale for hours.
+#
+# adapter-netlify writes static assets to build/ and any function to .netlify/.
+#
+# NOTE: no [[headers]] block and no hooks.server.js here — this app declares its
+# Content-Security-Policy through SvelteKit's own kit.csp (hash mode), which is
+# the better mechanism because it auto-hashes the inline hydration bootstrap.
+# Do not add a second CSP source; a hand-rolled one blocks hydration outright.
+#
+# Careful with `rm -rf .netlify` when cleaning: that directory holds both the
+# adapter output AND Netlify's state.json project link. Deleting it unlinks the
+# project until you `netlify link --name <site>`.
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  DEPLOY_TARGET = "netlify"

@@ -28,11 +28,25 @@ const config = {
       mode: "hash",
       directives: {
         "default-src": ["self"],
-        "script-src": ["self", "wasm-unsafe-eval"],
+        // fleetcount is the visitor beacon in app.html; cloudflareinsights is
+        // auto-injected by Cloudflare. Both were being REFUSED — this app
+        // shipped a counter that counted nobody. Found by loading the live
+        // page and reading the console, which no file-level check can do.
+        "script-src": [
+          "self",
+          "wasm-unsafe-eval",
+          "https://fleetcount.pibulus.deno.net",
+          "https://static.cloudflareinsights.com",
+        ],
         "style-src": ["self", "unsafe-inline"],
         "img-src": ["self", "data:", "blob:"],
         "media-src": ["self", "blob:"],
-        "connect-src": ["self", "blob:"],
+        "connect-src": [
+          "self",
+          "blob:",
+          "https://fleetcount.pibulus.deno.net",
+          "https://static.cloudflareinsights.com",
+        ],
         "worker-src": ["self", "blob:"],
         "font-src": ["self"],
         "frame-src": ["none"],

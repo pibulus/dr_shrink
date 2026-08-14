@@ -242,11 +242,32 @@ async function getFFmpeg(onProgress) {
   if (onProgress) ff.on("progress", ({ progress }) => onProgress(progress));
   // WASM self-hosted from /wasm/ — keeps user data off CDN servers and
   // allows the COEP require-corp header (unpkg won't serve under it).
+  // MUST be the ESM dist of @ffmpeg/core: the loader runs in a module worker
+  // (no importScripts), so a UMD core fails to import and nothing ever loads.
   const base = "/wasm";
-  await ff.load({
+  const loading = ff.load({
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
   });
+  // If the worker dies quietly (bad URL, blocked script), load() never settles.
+  // Never leave the user in an eternal "Shrinking…" — fail loud instead.
+  const timeout = new Promise((_, reject) =>
+    setTimeout(
+      () =>
+        reject(
+          new Error(
+            "The audio engine would not start, so this file was left untouched. A refresh usually wakes it up.",
+          ),
+        ),
+      45000,
+    ),
+  );
+  try {
+    await Promise.race([loading, timeout]);
+  } catch (e) {
+    ff.terminate?.();
+    throw e;
+  }
   _ffmpeg = ff;
   return ff;
 }

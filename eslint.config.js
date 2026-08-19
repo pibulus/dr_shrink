@@ -9,6 +9,8 @@ const gitignorePath = fileURLToPath(new URL("./.gitignore", import.meta.url));
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   includeIgnoreFile(gitignorePath),
+  // vendored ffmpeg.wasm loader — minified emscripten output, not our code
+  { ignores: ["static/wasm/"] },
   js.configs.recommended,
   ...svelte.configs["flat/recommended"],
   prettier,

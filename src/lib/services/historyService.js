@@ -83,3 +83,18 @@ export async function retryDownload(entry) {
   if (!entry?.blobId) return null;
   return getCache(entry.blobId);
 }
+
+/**
+ * A cache miss means the 30-min window closed — drop the stale blobId so the
+ * re-download button disappears instead of silently doing nothing forever.
+ */
+export function markExpired(entry) {
+  if (!entry?.blobId) return;
+  history.update((list) => {
+    const next = list.map((e) =>
+      e.blobId === entry.blobId ? { ...e, blobId: null } : e,
+    );
+    persist(next);
+    return next;
+  });
+}

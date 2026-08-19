@@ -124,8 +124,10 @@ export function checkDrop(files, supporter) {
   if (files.length > lim.maxBatch) {
     return {
       ok: false,
-      gated: true,
-      reason: `Free plan handles ${lim.maxBatch} files at once. Support the doc for up to ${LIMITS.supporter.maxBatch}.`,
+      gated: !supporter, // only nudge people who don't already have the pass
+      reason: supporter
+        ? `That's ${files.length} files — browser memory tops out around ${lim.maxBatch} per drop. Split it up?`
+        : `Free plan handles ${lim.maxBatch} files at once. Support the doc for up to ${LIMITS.supporter.maxBatch}.`,
     };
   }
   const tooBig = files.find((f) => f.size > lim.maxFileBytes);
@@ -133,8 +135,10 @@ export function checkDrop(files, supporter) {
     const mb = Math.round(lim.maxFileBytes / (1024 * 1024));
     return {
       ok: false,
-      gated: true,
-      reason: `"${tooBig.name}" is over the ${mb} MB free limit. Support the doc for bigger files.`,
+      gated: !supporter,
+      reason: supporter
+        ? `"${tooBig.name}" is over the ${mb} MB per-file ceiling — that's the browser's limit, not a paywall.`
+        : `"${tooBig.name}" is over the ${mb} MB free limit. Support the doc for bigger files.`,
     };
   }
   return { ok: true };

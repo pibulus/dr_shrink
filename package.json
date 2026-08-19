@@ -20,6 +20,7 @@
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
     "@eslint/js": "^9.18.0",
+    "@ffmpeg/core": "0.12.10",
     "@sveltejs/adapter-netlify": "6.0.4",
     "@sveltejs/adapter-node": "5.5.4",
     "@sveltejs/kit": "^2.16.0",

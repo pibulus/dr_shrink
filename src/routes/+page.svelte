@@ -22,6 +22,7 @@
     recordHistory,
     clearHistory,
     retryDownload,
+    markExpired,
   } from "$lib/services/historyService.js";
   import { tick, onDestroy, onMount } from "svelte";
   import { browser } from "$app/environment";
@@ -198,9 +199,51 @@
     }, 2600);
   }
 
+  // Folders arrive in dataTransfer.files as unreadable pseudo-Files (reading
+  // them throws). Expand them into their real contents instead — the entry
+  // handles must be grabbed synchronously, before the event goes stale.
+  const MAX_FOLDER_FILES = 400;
+  function filesFromDrop(dt) {
+    const entries = [...(dt.items || [])]
+      .map((it) => it.webkitGetAsEntry?.())
+      .filter(Boolean);
+    if (!entries.some((en) => en.isDirectory))
+      return Promise.resolve([...dt.files]);
+
+    const out = [];
+    async function walk(entry) {
+      if (out.length >= MAX_FOLDER_FILES) return;
+      if (entry.isFile) {
+        const f = await new Promise((res) =>
+          entry.file(res, () => res(null)),
+        );
+        // skip dotfile junk a folder drags along (.DS_Store & friends)
+        if (f && !f.name.startsWith(".")) out.push(f);
+      } else if (entry.isDirectory) {
+        const reader = entry.createReader();
+        let batch;
+        do {
+          // readEntries hands back ≤100 per call — drain until empty
+          batch = await new Promise((res) =>
+            reader.readEntries(res, () => res([])),
+          );
+          for (const en of batch) await walk(en);
+        } while (batch.length);
+      }
+    }
+    return (async () => {
+      for (const en of entries) await walk(en);
+      return out;
+    })();
+  }
+
   async function handleFiles(fileList) {
     const files = [...fileList];
     if (!files.length) return;
+    if (phase === "busy") {
+      flashEgg("hang on — still crunching");
+      return;
+    }
     error = "";
 
     // Supporter gate (size / batch limits)
@@ -227,8 +270,8 @@
       const out = await compress(files, {
         onProgress: (p) => {
           determinate = true;
-          progress = p;
-          busyLabel = crunchLabel(Math.round(p * 100), quip);
+          progress = Math.max(0, Math.min(1, p));
+          busyLabel = crunchLabel(Math.round(progress * 100), quip);
         },
       });
       let saved = 0;
@@ -261,7 +304,10 @@
       popMascot(ratioSaved, bigWin);
       countUpTo(results.reduce((a, r) => a + Math.max(0, r.saved), 0));
     } catch (e) {
-      error = e.message;
+      // ffmpeg.wasm sometimes rejects with a plain string — never let a
+      // falsy message swallow the error box into a silent no-op.
+      error =
+        e?.message || String(e || "") || "Something went wrong mid-squeeze. Try again?";
       phase = "idle";
       soundError();
     }
@@ -276,15 +322,13 @@
   function onDrop(e) {
     e.preventDefault();
     dragOver = false;
-    handleFiles(e.dataTransfer.files);
+    filesFromDrop(e.dataTransfer).then(handleFiles);
   }
 
   function onPick(e) {
     handleFiles(e.target.files);
     e.target.value = "";
   }
-
-  $: totalSaved = results.reduce((a, r) => a + Math.max(0, r.saved), 0);
 
   onDestroy(() => {
     if (countRaf) cancelAnimationFrame(countRaf);
@@ -328,7 +372,7 @@
         mascotDragOver = false;
         catching = true;
         setTimeout(() => (catching = false), 380);
-        handleFiles(e.dataTransfer.files);
+        filesFromDrop(e.dataTransfer).then(handleFiles);
       }}
     >
       {#if eggQuip}
@@ -337,9 +381,12 @@
       <Mascot
         bind:this={mascot}
         character="brain"
+        eyes="thinker"
         theme={$theme}
         {busy}
-        ariaLabel="DrShrink — choose a file"
+        ariaLabel={busy
+          ? "DrShrink mascot — shrinking your files"
+          : "DrShrink mascot — choose a file"}
         on:activate={() => {
           if (onMascotPoke()) document.getElementById("file-input")?.click();
         }}
@@ -458,6 +505,10 @@
                     e.stopPropagation();
                     const cached = await retryDownload(h);
                     if (cached) downloadBlob(cached.blob, cached.name);
+                    else {
+                      markExpired(h);
+                      flashEgg("expired — files only stick around 30 min", 2200);
+                    }
                   }}>↓</button
                 >
               {/if}

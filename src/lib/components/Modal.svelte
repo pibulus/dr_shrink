@@ -1,5 +1,6 @@
 <script>
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, tick } from "svelte";
+  import { browser } from "$app/environment";
 
   export let open = false;
   export let title = "";
@@ -34,6 +35,20 @@
   function onKeydown(e) {
     if (e.key === "Escape") close();
   }
+
+  // Move focus into the dialog on open, hand it back on close — otherwise
+  // keyboard users are left focused on something hidden behind the overlay.
+  let boxEl;
+  let prevFocus = null;
+  $: if (browser) {
+    if (open) {
+      prevFocus = document.activeElement;
+      tick().then(() => boxEl?.focus());
+    } else if (prevFocus) {
+      prevFocus.focus?.();
+      prevFocus = null;
+    }
+  }
 </script>
 
 <svelte:window on:keydown={open ? onKeydown : undefined} />
@@ -41,6 +56,7 @@
 {#if open}
   <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
+      bind:this={boxEl}
       class="box"
       class:closing
       role="dialog"
@@ -48,7 +64,7 @@
       aria-label={title}
       tabindex="-1"
       on:click|stopPropagation
-      on:keydown|stopPropagation
+      on:keydown={onKeydown}
     >
       <button class="x" on:click={close} aria-label="Close">×</button>
 

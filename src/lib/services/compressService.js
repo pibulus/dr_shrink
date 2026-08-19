@@ -25,7 +25,9 @@ const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
 const MAX_BATCH_BYTES = 300 * 1024 * 1024;
 
 // ── type detection ──
-const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif|tiff?)$/i;
+// heic/heif ride with images: Safari decodes them natively (great outcome),
+// other browsers fail decode and get a friendly "export as JPEG" error.
+const IMAGE_RE = /\.(jpe?g|png|webp|bmp|gif|tiff?|heic|heif)$/i;
 const TEXT_RE =
   /\.(txt|md|markdown|csv|tsv|json|log|svg|xml|yaml|yml|js|ts|css|html?|c|cpp|h|py|rb|go|rs|sh)$/i;
 const DOCX_RE = /\.docx$/i;
@@ -33,7 +35,8 @@ const SVG_RE = /\.svg$/i;
 const AUDIO_RE = /\.(mp3|wav|m4a|aac|ogg|flac|aiff?)$/i;
 const VIDEO_RE = /\.(mp4|mov|webm|mkv|avi|m4v)$/i;
 // already-compressed: gzip/zip won't help, and we have no better handler
-const PACKED_RE = /\.(zip|gz|7z|rar|pdf|heic)$/i;
+const PACKED_RE = /\.(zip|gz|tgz|bz2|xz|7z|rar|dmg)$/i;
+const PDF_RE = /\.pdf$/i;
 
 export function isImage(file) {
   return file.type.startsWith("image/") || IMAGE_RE.test(file.name);
@@ -43,6 +46,9 @@ function isSvg(file) {
 }
 function isText(file) {
   return file.type.startsWith("text/") || TEXT_RE.test(file.name);
+}
+function isHtml(file) {
+  return file.type === "text/html" || /\.html?$/i.test(file.name);
 }
 function isDocx(file) {
   return DOCX_RE.test(file.name);
@@ -96,30 +102,69 @@ function loadImage(file) {
 function canvasToBlob(canvas, type, quality) {
   return new Promise((r) => canvas.toBlob((b) => r(b), type, quality));
 }
-// Detect an animated GIF (multiple image frames) so we don't silently flatten it
-// to a single frame via Canvas. Looks for >1 Graphic Control Extension block.
-async function isAnimatedGif(file) {
-  if (!/\.gif$/i.test(file.name) && file.type !== "image/gif") return false;
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let frames = 0;
-  for (let i = 0; i < bytes.length - 3; i++) {
-    // 0x21 0xF9 0x04 = Graphic Control Extension (one per frame)
-    if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
-      if (++frames > 1) return true;
+// Detect an animated GIF or WebP (multiple frames) so we don't silently
+// flatten it to a single frame via Canvas.
+async function isAnimatedImage(file) {
+  const isGif = /\.gif$/i.test(file.name) || file.type === "image/gif";
+  const isWebp = /\.webp$/i.test(file.name) || file.type === "image/webp";
+  if (isGif) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let frames = 0;
+    for (let i = 0; i < bytes.length - 3; i++) {
+      // 0x21 0xF9 0x04 = Graphic Control Extension (one per frame)
+      if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
+        if (++frames > 1) return true;
+      }
     }
+    return false;
+  }
+  if (isWebp) {
+    // RIFF….WEBP with a VP8X extended header → animation flag is bit 0x02.
+    const b = new Uint8Array(await file.slice(0, 21).arrayBuffer());
+    const tag = (i, s) =>
+      s.split("").every((ch, j) => b[i + j] === ch.charCodeAt(0));
+    return (
+      b.length >= 21 &&
+      tag(0, "RIFF") &&
+      tag(8, "WEBP") &&
+      tag(12, "VP8X") &&
+      (b[20] & 0x02) !== 0
+    );
   }
   return false;
 }
 
+// Decode with EXIF orientation applied — createImageBitmap("from-image")
+// lands phone photos upright. Fall back to a plain <img> decode where it's
+// missing or chokes on a format.
+async function decodeImage(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      /* fall through to <img> decode */
+    }
+  }
+  return loadImage(file);
+}
+
 async function compressImage(file) {
-  // Don't wreck animated GIFs — Canvas can only capture frame 1.
-  if (await isAnimatedGif(file)) {
+  // Don't wreck animated GIFs/WebPs — Canvas can only capture frame 1.
+  if (await isAnimatedImage(file)) {
     throw new Error(
-      `${file.name} is an animated GIF — DrShrink would flatten it. Skipped to keep it intact.`,
+      `${file.name} is animated — DrShrink would flatten it to one frame. Skipped to keep it intact.`,
     );
   }
 
-  const img = await loadImage(file);
+  let img;
+  try {
+    img = await decodeImage(file);
+  } catch {
+    const hint = /\.(heic|heif)$/i.test(file.name)
+      ? "it's a HEIC photo — this browser can't decode those. Export it as JPEG first."
+      : "is it a real image?";
+    throw new Error(`Couldn't read ${file.name} — ${hint}`);
+  }
   let { width, height } = img;
   const longest = Math.max(width, height);
   if (longest > MAX_DIMENSION) {
@@ -131,11 +176,17 @@ async function compressImage(file) {
   canvas.width = width;
   canvas.height = height;
   canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+  img.close?.(); // free the ImageBitmap's pixel buffer right away
 
   const candidates = [];
   const webp = await canvasToBlob(canvas, "image/webp", IMAGE_QUALITY);
   if (webp) candidates.push({ blob: webp, ext: "webp", type: "image/webp" });
-  const srcType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  // Only jpeg sources re-encode to jpeg — anything else may carry alpha,
+  // which jpeg flattens onto black.
+  const srcType =
+    file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)
+      ? "image/jpeg"
+      : "image/png";
   const reSrc = await canvasToBlob(
     canvas,
     srcType,
@@ -200,14 +251,33 @@ async function compressHtml(file) {
 // ── svg: minify in-place (strip comments, whitespace, cruft) ──
 async function compressSvg(file) {
   const raw = await file.text();
-  const out = raw
+  let out = raw
     .replace(/<!--[\s\S]*?-->/g, "") // strip XML comments
     .replace(/<\?xml[^>]*\?>\s*/g, "") // strip XML declaration
-    .replace(/<!DOCTYPE[^>]*>\s*/gi, "") // strip doctype
-    .replace(/>\s+</g, "><") // collapse whitespace between tags
-    .replace(/\s{2,}/g, " ") // collapse runs of spaces
-    .trim();
+    .replace(/<!DOCTYPE[^>]*>\s*/gi, ""); // strip doctype
+  // Whitespace inside <text> runs (and xml:space="preserve") is rendered —
+  // only collapse it when the SVG has no significant text content.
+  if (!/<text[\s>]|xml:space\s*=\s*["']preserve/i.test(out)) {
+    out = out
+      .replace(/>\s+</g, "><") // collapse whitespace between tags
+      .replace(/\s{2,}/g, " "); // collapse runs of spaces
+  }
+  out = out.trim();
+
+  // Safety net: if the minified markup no longer parses, or barely helps,
+  // hand back the original instead of a corrupted or pointless file.
+  const reparsed = new DOMParser().parseFromString(out, "image/svg+xml");
+  const broke = reparsed.querySelector("parsererror") !== null;
   const blob = new Blob([out], { type: "image/svg+xml" });
+  if (broke || blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
+    return result(
+      file,
+      file.name,
+      "image/svg+xml",
+      file.size,
+      "already efficient — kept original",
+    );
+  }
   return result(
     blob,
     `${baseName(file.name)}.min.svg`,
@@ -234,12 +304,13 @@ async function compressDocx(file) {
 
 // ── audio → re-encode smaller (lazy ffmpeg, single-thread core) ──
 let _ffmpeg = null;
+let _onFFmpegProgress = null; // rebound per job — the instance is a singleton
 async function getFFmpeg(onProgress) {
+  _onFFmpegProgress = onProgress || null;
   if (_ffmpeg) return _ffmpeg;
   const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-  const { toBlobURL } = await import("@ffmpeg/util");
   const ff = new FFmpeg();
-  if (onProgress) ff.on("progress", ({ progress }) => onProgress(progress));
+  ff.on("progress", ({ progress }) => _onFFmpegProgress?.(progress));
   // WASM self-hosted from /wasm/ — keeps user data off CDN servers and
   // allows the COEP require-corp header (unpkg won't serve under it).
   // MUST be the ESM dist of @ffmpeg/core: the loader runs in a module worker
@@ -271,6 +342,25 @@ async function getFFmpeg(onProgress) {
   _ffmpeg = ff;
   return ff;
 }
+// exec resolves with ffmpeg's exit code instead of throwing — check it, or a
+// failed run surfaces as a baffling "readFile" error on the missing output.
+function assertExecOk(rc, file) {
+  if (rc !== 0) {
+    throw new Error(
+      `Couldn't re-encode ${file.name} — that format (or codec) isn't supported here. Original left untouched.`,
+    );
+  }
+}
+// A tightly-encoded input can come out BIGGER — keep the original instead.
+function keptOriginal(file, fallbackType) {
+  return result(
+    file,
+    file.name,
+    file.type || fallbackType,
+    file.size,
+    "already efficient — kept original",
+  );
+}
 async function compressAudio(file, onProgress) {
   const ff = await getFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
@@ -279,7 +369,7 @@ async function compressAudio(file, onProgress) {
   await ff.writeFile(inName, await fetchFile(file));
   try {
     // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
-    await ff.exec([
+    const rc = await ff.exec([
       "-i",
       inName,
       "-codec:a",
@@ -288,8 +378,12 @@ async function compressAudio(file, onProgress) {
       "5",
       outName,
     ]);
+    assertExecOk(rc, file);
     const data = await ff.readFile(outName);
     const blob = new Blob([data], { type: "audio/mpeg" });
+    if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
+      return keptOriginal(file, "audio/*");
+    }
     return result(blob, outName, "audio/mpeg", file.size, "re-encoded mp3");
   } finally {
     await ff.deleteFile(inName).catch(() => {});
@@ -307,7 +401,7 @@ async function compressVideo(file, onProgress) {
   try {
     // 80/20: CRF 28 + ultrafast preset — good shrink, bearable WASM speed.
     // CRF 28 is the sweet spot (23 = near-lossless, 32 = visibly compressed).
-    await ff.exec([
+    const rc = await ff.exec([
       "-i",
       inName,
       "-c:v",
@@ -324,8 +418,12 @@ async function compressVideo(file, onProgress) {
       "+faststart",
       outName,
     ]);
+    assertExecOk(rc, file);
     const data = await ff.readFile(outName);
     const blob = new Blob([data], { type: "video/mp4" });
+    if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
+      return keptOriginal(file, "video/*");
+    }
     return result(blob, outName, "video/mp4", file.size, "re-encoded mp4");
   } finally {
     await ff.deleteFile(inName).catch(() => {});
@@ -341,38 +439,41 @@ async function zipFiles(files, onProgress) {
       `${formatBytes(inputTotal)} total is too much for one batch. Try fewer or smaller files.`,
     );
   }
-  const entries = {};
+  // null prototype so a file named "__proto__" or "constructor" can't vanish
+  // or collide with Object.prototype keys.
+  const entries = Object.create(null);
   let i = 0;
   for (const f of files) {
     onProgress?.(i / files.length);
-    let bytes, name;
+    let bytes = null;
+    let name = f.name;
     // Try to shrink images/text/docx/audio/video individually before bundling; otherwise store raw.
     if (
       isImage(f) ||
       isText(f) ||
       isDocx(f) ||
-      file_isHtml(f) ||
+      isHtml(f) ||
       isAudio(f) ||
       isVideo(f)
     ) {
       try {
-        const r = await compressOne(f);
+        // scale per-file ffmpeg progress into this file's slice of the batch
+        const idx = i;
+        const r = await compressOne(f, (p) =>
+          onProgress?.((idx + Math.max(0, Math.min(1, p))) / files.length),
+        );
         // only keep the compressed version if it actually got smaller
-        bytes =
-          r.outputSize < f.size
-            ? new Uint8Array(await r.blob.arrayBuffer())
-            : new Uint8Array(await f.arrayBuffer());
-        name = r.outputSize < f.size ? r.name : f.name;
+        if (r.outputSize < f.size) {
+          bytes = new Uint8Array(await r.blob.arrayBuffer());
+          name = r.name;
+        }
       } catch {
-        bytes = new Uint8Array(await f.arrayBuffer());
-        name = f.name;
+        /* fall through to raw copy */
       }
-    } else {
-      bytes = new Uint8Array(await f.arrayBuffer());
-      name = f.name;
     }
+    if (!bytes) bytes = new Uint8Array(await f.arrayBuffer());
     // avoid name collisions in the zip
-    entries[entries[name] ? `${i}_${name}` : name] = bytes;
+    entries[name in entries ? `${i}_${name}` : name] = bytes;
     i++;
   }
   onProgress?.(1);
@@ -387,22 +488,22 @@ async function zipFiles(files, onProgress) {
   );
 }
 
-function file_isHtml(f) {
-  return f.type === "text/html" || /\.html?$/i.test(f.name);
-}
-
 /**
- * Compress one file by its type. `onProgress(0..1)` is used for slow ops (audio).
+ * Compress one file by its type. `onProgress(0..1)` is used for slow ops (audio/video).
  */
 export async function compressOne(file, onProgress) {
   if (isSvg(file)) return compressSvg(file);
   if (isImage(file)) return compressImage(file);
   if (isDocx(file)) return compressDocx(file);
-  if (file.type === "text/html" || /\.html?$/i.test(file.name))
-    return compressHtml(file);
+  if (isHtml(file)) return compressHtml(file);
   if (isText(file)) return compressText(file);
   if (isAudio(file)) return compressAudio(file, onProgress);
   if (isVideo(file)) return compressVideo(file, onProgress);
+  if (PDF_RE.test(file.name)) {
+    throw new Error(
+      `PDF squeezing isn't in the doctor's kit yet — it's on the roadmap.`,
+    );
+  }
   if (isPacked(file)) {
     throw new Error(`${file.name} is already compressed — nothing to shrink.`);
   }

@@ -10,15 +10,17 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 
 - Drag/drop or click → compress, single + batch
 - **Drop onto the mascot** — drag files over the brain (glow + scale up, catch animation)
-- **Images** → WebP q0.86 + re-encode candidate, 4K cap, skips pointless re-encodes,
-  refuses animated GIFs, supports JPEG/PNG/WebP/BMP/GIF/TIFF
+- **Images** → WebP q0.86 + re-encode candidate, 4K cap, EXIF-upright, skips pointless
+  re-encodes, refuses animated GIFs/WebPs, supports JPEG/PNG/WebP/BMP/GIF/TIFF
 - **SVG** → minified in-place (strips comments/whitespace/cruft → `.min.svg`)
 - **Video** → H.264 mp4 via ffmpeg.wasm (CRF 28, ultrafast preset, AAC 128k audio)
 - **Audio** → VBR mp3 via ffmpeg.wasm (q5, ~128kbps) — MP3/WAV/M4A/AAC/OGG/FLAC/AIFF
 - **Text/code** → gzip level 9, `.html` → plain text, `.docx` → text (mammoth)
 - **Batch** → one `.zip` (each shrinkable file compressed first, audio/video included)
 - Batch OOM guard (300MB total input cap)
-- Already-compressed detection (politely refuses zip/gz/7z/rar/pdf/heic)
+- Already-compressed detection (politely refuses archives + PDF; HEIC tried as an
+  image — Safari converts it, elsewhere a friendly "export as JPEG" nudge)
+- Folder drops expanded into their files (dotfile junk skipped, 400-file cap)
 - **Blob cache** — IndexedDB 30min TTL, results survive refresh, history re-downloadable
 - **Auto-download** on completion (toggle in options, default on)
 - Results list capped at 25 entries
@@ -83,7 +85,6 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 
 ### Housekeeping
 
-- Tidy the apple-touch-icon 404 (cosmetic).
 - Real-device pass on an actual iPhone + Android (Playwright ≠ Safari).
 - Lighthouse run for a hard perf/a11y number.
 

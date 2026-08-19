@@ -13,10 +13,14 @@ DrShrink is a little brain dude that catches your files, squishes them down, and
 | Text/code/json/csv/svg/xml/yaml/md    | Gzipped `.gz`                                   |
 | HTML                                  | Stripped to plain text                          |
 | DOCX                                  | Extracted text (`.txt`)                         |
+| A folder                              | Expanded into its files (dotfile junk skipped)  |
 | Multiple files                        | One `.zip` — each file shrunk first             |
 | Anything else                         | Gzip fallback                                   |
 
-Already-compressed stuff (zip/gz/7z/rar/pdf/heic) gets politely refused.
+Animated GIFs/WebPs are left intact (flattening them would be malpractice).
+Archives (zip/gz/7z/rar) get politely refused; PDF is refused with a roadmap
+nod; HEIC is attempted — Safari decodes it natively, other browsers get a
+friendly "export as JPEG first".
 
 **Everything runs client-side.** Files never leave your device. No accounts, no tracking, no servers.
 
@@ -29,7 +33,7 @@ Four themes (vibrant / warm / cool / minimal), Web Audio blips, confetti on big 
 ## Stack
 
 SvelteKit · Svelte 5 · Tailwind + DaisyUI · `@sveltejs/adapter-node`.
-Compression: native Canvas (images), [`fflate`](https://github.com/101arrowz/fflate) (zip/gzip, eager), [`mammoth`](https://github.com/mwilliamson/mammoth.js) (docx, lazy), [`@ffmpeg/ffmpeg`](https://github.com/ffmpegwasm/ffmpeg.wasm) (audio/video, lazy ~31MB WASM from unpkg CDN). Living mascot engine in `src/lib/components/mascot/`.
+Compression: native Canvas (images), [`fflate`](https://github.com/101arrowz/fflate) (zip/gzip, eager), [`mammoth`](https://github.com/mwilliamson/mammoth.js) (docx, lazy), [`@ffmpeg/ffmpeg`](https://github.com/ffmpegwasm/ffmpeg.wasm) (audio/video, lazy ~31MB WASM **self-hosted** from `static/wasm/`, single-thread core — keeps everything first-party, no cross-origin isolation headers needed; see the note in `src/hooks.server.js`). Living mascot engine in `src/lib/components/mascot/`.
 
 ## Dev
 
@@ -49,7 +53,8 @@ Four themes (vibrant / warm / cool / minimal) via `html[data-theme]` + `--ds-*` 
 
 `$9/yr` stub: `src/lib/services/supporterService.js` gates file size + batch limits (structure only — no real payment wired yet). Contributor codes gated to dev mode only.
 
-Free: 25 MB/file, 5 files/batch. Supporter: 500 MB/file, 200 files/batch.
+Free: 25 MB/file, 5 files/batch. Supporter: 100 MB/file, 25 files/batch
+(browser-memory-realistic — see `LIMITS` in `supporterService.js`).
 
 ## Deploy
 

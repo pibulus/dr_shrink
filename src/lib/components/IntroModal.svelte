@@ -31,7 +31,7 @@
     }
     closing = true;
     clearTimeout(closeTimer);
-    // Matches the 180ms close animation in this file's <style>.
+    // Matches the 180ms close animation in this file's style block.
     closeTimer = setTimeout(finishClose, 180);
   }
 

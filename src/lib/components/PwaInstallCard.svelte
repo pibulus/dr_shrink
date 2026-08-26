@@ -116,7 +116,7 @@
   function dismiss() {
     if (closing || !visible) return;
     closing = true;
-    // Matches the 180ms pop-out in this file's <style> (modal DNA timing).
+    // Matches the 180ms pop-out in this file's style block (modal DNA timing).
     closeTimer = setTimeout(() => {
       visible = false;
       closing = false;

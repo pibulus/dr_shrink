@@ -25,7 +25,7 @@
       return;
     }
     closing = true;
-    // Matches the 180ms close animation in this file's <style>.
+    // Matches the 180ms close animation in this file's style block.
     setTimeout(() => {
       closing = false;
       dispatch("close");

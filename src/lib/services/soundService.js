@@ -7,12 +7,13 @@
 
 import { writable } from "svelte/store";
 import { browser } from "$app/environment";
+import { readStorage } from "./storage.js";
 
 const KEY = "drshrink-muted";
 
 function initialMuted() {
   if (!browser) return false;
-  return localStorage.getItem(KEY) === "true";
+  return readStorage(KEY) === "true";
 }
 
 export const muted = writable(initialMuted());
@@ -22,7 +23,11 @@ function ctx() {
   if (!browser) return null;
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
-  if (!_ctx) _ctx = new AC();
+  try {
+    if (!_ctx) _ctx = new AC();
+  } catch {
+    return null;
+  }
   if (_ctx.state === "suspended") _ctx.resume().catch(() => {});
   return _ctx;
 }

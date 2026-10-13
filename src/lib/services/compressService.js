@@ -107,14 +107,40 @@ function canvasToBlob(canvas, type, quality) {
 async function isAnimatedImage(file) {
   const isGif = /\.gif$/i.test(file.name) || file.type === "image/gif";
   const isWebp = /\.webp$/i.test(file.name) || file.type === "image/webp";
+  const isPng = /\.png$/i.test(file.name) || file.type === "image/png";
   if (isGif) {
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes.length < 13) return false;
+    // Count image descriptors, not optional Graphic Control Extensions.
+    // Walking blocks avoids mistaking compressed pixels for a frame marker.
+    let offset = 13 + (bytes[10] & 0x80 ? 3 * (1 << ((bytes[10] & 7) + 1)) : 0);
     let frames = 0;
-    for (let i = 0; i < bytes.length - 3; i++) {
-      // 0x21 0xF9 0x04 = Graphic Control Extension (one per frame)
-      if (bytes[i] === 0x21 && bytes[i + 1] === 0xf9 && bytes[i + 2] === 0x04) {
+    while (offset < bytes.length) {
+      const marker = bytes[offset++];
+      if (marker === 0x2c) {
         if (++frames > 1) return true;
-      }
+        const packed = bytes[offset + 8];
+        offset += 9 + (packed & 0x80 ? 3 * (1 << ((packed & 7) + 1)) : 0);
+        offset++; // LZW minimum code size
+      } else if (marker === 0x21)
+        offset++; // extension label
+      else return false; // trailer or malformed block
+      let length;
+      while (offset < bytes.length && (length = bytes[offset++]))
+        offset += length;
+    }
+    return false;
+  }
+  if (isPng) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const view = new DataView(bytes.buffer);
+    for (let offset = 8; offset + 12 <= bytes.length;) {
+      const length = view.getUint32(offset);
+      if (offset + 12 + length > bytes.length) break;
+      // APNG's animation control chunk records the number of frames.
+      if (view.getUint32(offset + 4) === 0x6163544c && length === 8)
+        return view.getUint32(offset + 8) > 1;
+      offset += 12 + length;
     }
     return false;
   }
@@ -180,7 +206,9 @@ async function compressImage(file) {
 
   const candidates = [];
   const webp = await canvasToBlob(canvas, "image/webp", IMAGE_QUALITY);
-  if (webp) candidates.push({ blob: webp, ext: "webp", type: "image/webp" });
+  // Canvas falls back to PNG when a requested encoder isn't available.
+  if (webp?.type === "image/webp")
+    candidates.push({ blob: webp, ext: "webp", type: webp.type });
   // Only jpeg sources re-encode to jpeg — anything else may carry alpha,
   // which jpeg flattens onto black.
   const srcType =
@@ -225,6 +253,8 @@ async function compressImage(file) {
 async function compressText(file) {
   const buf = new Uint8Array(await file.arrayBuffer());
   const gz = gzipSync(buf, { level: 9 });
+  if (gz.length >= file.size)
+    return keptOriginal(file, "application/octet-stream");
   return result(
     new Blob([gz], { type: "application/gzip" }),
     `${file.name}.gz`,
@@ -237,6 +267,10 @@ async function compressText(file) {
 async function compressHtml(file) {
   const html = await file.text();
   const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script, style, template").forEach((el) => el.remove());
+  doc
+    .querySelectorAll("br, p, div, li, h1, h2, h3, h4, h5, h6, tr")
+    .forEach((el) => el.append(doc.createTextNode("\n")));
   const text = (doc.body?.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
   const blob = new Blob([text], { type: "text/plain" });
   return result(
@@ -257,7 +291,11 @@ async function compressSvg(file) {
     .replace(/<!DOCTYPE[^>]*>\s*/gi, ""); // strip doctype
   // Whitespace inside <text> runs (and xml:space="preserve") is rendered —
   // only collapse it when the SVG has no significant text content.
-  if (!/<text[\s>]|xml:space\s*=\s*["']preserve/i.test(out)) {
+  if (
+    !/<(?:text|tspan|style|script|foreignObject)[\s>]|xml:space\s*=\s*["']preserve/i.test(
+      out,
+    )
+  ) {
     out = out
       .replace(/>\s+</g, "><") // collapse whitespace between tags
       .replace(/\s{2,}/g, " "); // collapse runs of spaces
@@ -311,19 +349,19 @@ async function getFFmpeg(onProgress) {
   const { FFmpeg } = await import("@ffmpeg/ffmpeg");
   const ff = new FFmpeg();
   ff.on("progress", ({ progress }) => _onFFmpegProgress?.(progress));
-  // WASM self-hosted from /wasm/ — keeps user data off CDN servers and
-  // allows the COEP require-corp header (unpkg won't serve under it).
+  // Same-origin ESM assets work inside the production CSP without blob scripts.
   // MUST be the ESM dist of @ffmpeg/core: the loader runs in a module worker
   // (no importScripts), so a UMD core fails to import and nothing ever loads.
   const base = "/wasm";
   const loading = ff.load({
-    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
+    coreURL: `${base}/ffmpeg-core.js?v=0.12.10-esm`,
+    wasmURL: `${base}/ffmpeg-core.wasm?v=0.12.10-esm`,
   });
   // If the worker dies quietly (bad URL, blocked script), load() never settles.
   // Never leave the user in an eternal "Shrinking…" — fail loud instead.
-  const timeout = new Promise((_, reject) =>
-    setTimeout(
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = setTimeout(
       () =>
         reject(
           new Error(
@@ -331,13 +369,15 @@ async function getFFmpeg(onProgress) {
           ),
         ),
       45000,
-    ),
-  );
+    );
+  });
   try {
     await Promise.race([loading, timeout]);
   } catch (e) {
     ff.terminate?.();
     throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
   _ffmpeg = ff;
   return ff;
@@ -365,9 +405,9 @@ async function compressAudio(file, onProgress) {
   const ff = await getFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
   const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
-  const outName = baseName(file.name) + ".min.mp3";
-  await ff.writeFile(inName, await fetchFile(file));
+  const outName = "output.mp3";
   try {
+    await ff.writeFile(inName, await fetchFile(file));
     // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
     const rc = await ff.exec([
       "-i",
@@ -384,7 +424,13 @@ async function compressAudio(file, onProgress) {
     if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
       return keptOriginal(file, "audio/*");
     }
-    return result(blob, outName, "audio/mpeg", file.size, "re-encoded mp3");
+    return result(
+      blob,
+      `${baseName(file.name)}.min.mp3`,
+      "audio/mpeg",
+      file.size,
+      "re-encoded mp3",
+    );
   } finally {
     await ff.deleteFile(inName).catch(() => {});
     await ff.deleteFile(outName).catch(() => {});
@@ -396,9 +442,9 @@ async function compressVideo(file, onProgress) {
   const ff = await getFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
   const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
-  const outName = baseName(file.name) + ".min.mp4";
-  await ff.writeFile(inName, await fetchFile(file));
+  const outName = "output.mp4";
   try {
+    await ff.writeFile(inName, await fetchFile(file));
     // 80/20: CRF 28 + ultrafast preset — good shrink, bearable WASM speed.
     // CRF 28 is the sweet spot (23 = near-lossless, 32 = visibly compressed).
     const rc = await ff.exec([
@@ -408,6 +454,10 @@ async function compressVideo(file, onProgress) {
       "libx264",
       "-crf",
       "28",
+      "-pix_fmt",
+      "yuv420p",
+      "-vf",
+      "scale=trunc(iw/2)*2:trunc(ih/2)*2",
       "-preset",
       "ultrafast",
       "-c:a",
@@ -424,7 +474,13 @@ async function compressVideo(file, onProgress) {
     if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
       return keptOriginal(file, "video/*");
     }
-    return result(blob, outName, "video/mp4", file.size, "re-encoded mp4");
+    return result(
+      blob,
+      `${baseName(file.name)}.min.mp4`,
+      "video/mp4",
+      file.size,
+      "re-encoded mp4",
+    );
   } finally {
     await ff.deleteFile(inName).catch(() => {});
     await ff.deleteFile(outName).catch(() => {});
@@ -443,19 +499,22 @@ async function zipFiles(files, onProgress) {
   // or collide with Object.prototype keys.
   const entries = Object.create(null);
   let i = 0;
+  let unchanged = 0;
   for (const f of files) {
     onProgress?.(i / files.length);
     let bytes = null;
-    let name = f.name;
-    // Try to shrink images/text/docx/audio/video individually before bundling; otherwise store raw.
-    if (
-      isImage(f) ||
-      isText(f) ||
-      isDocx(f) ||
-      isHtml(f) ||
-      isAudio(f) ||
-      isVideo(f)
-    ) {
+    const path = (f.relativePath || f.webkitRelativePath || f.name)
+      .replace(/\\/g, "/")
+      .split("/")
+      .filter((part) => part && part !== "." && part !== "..")
+      .join("/");
+    const directory = path.includes("/")
+      ? path.slice(0, path.lastIndexOf("/") + 1)
+      : "";
+    let name = path;
+    // ZIP already compresses text. Preserve document structure in batches;
+    // plain-text extraction belongs to the single-file flow only.
+    if (isImage(f) || isAudio(f) || isVideo(f)) {
       try {
         // scale per-file ffmpeg progress into this file's slice of the batch
         const idx = i;
@@ -465,15 +524,22 @@ async function zipFiles(files, onProgress) {
         // only keep the compressed version if it actually got smaller
         if (r.outputSize < f.size) {
           bytes = new Uint8Array(await r.blob.arrayBuffer());
-          name = r.name;
+          name = directory + r.name;
         }
       } catch {
         /* fall through to raw copy */
       }
     }
-    if (!bytes) bytes = new Uint8Array(await f.arrayBuffer());
+    if (!bytes) {
+      bytes = new Uint8Array(await f.arrayBuffer());
+      unchanged++;
+    }
     // avoid name collisions in the zip
-    entries[name in entries ? `${i}_${name}` : name] = bytes;
+    let unique = name;
+    let suffix = 1;
+    while (unique in entries)
+      unique = `${directory}${suffix++}_${name.slice(directory.length)}`;
+    entries[unique] = bytes;
     i++;
   }
   onProgress?.(1);
@@ -484,7 +550,7 @@ async function zipFiles(files, onProgress) {
     `drshrink-${files.length}-files.zip`,
     "application/zip",
     inputTotal,
-    `${files.length} files`,
+    `${files.length} files${unchanged ? ` · ${unchanged} kept in original format` : ""}`,
   );
 }
 

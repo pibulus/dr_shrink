@@ -52,19 +52,27 @@
 
   @media (max-width: 640px) {
     .page-shell {
-      padding-top: max(env(safe-area-inset-top), clamp(4rem, 10svh, 5.5rem)) !important;
+      padding-top: max(
+        env(safe-area-inset-top),
+        clamp(4rem, 10svh, 5.5rem)
+      ) !important;
       min-height: 100dvh;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
     }
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 768px) {
     .page-shell {
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      padding-top: 15vh !important;
+      padding-top: clamp(1.5rem, 5vh, 3rem) !important;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 740px) {
+    .page-shell {
+      padding-top: 1.5rem !important;
     }
   }
 

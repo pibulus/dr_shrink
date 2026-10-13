@@ -11,7 +11,13 @@
   } from "$lib/services/compressService.js";
   import { cacheId, putCache } from "$lib/services/blobCache.js";
   import { theme } from "$lib";
-  import { isSupporter, checkDrop } from "$lib/services/supporterService.js";
+  import {
+    isSupporter,
+    checkDrop,
+    LIMITS,
+    SUPPORT_URL,
+  } from "$lib/services/supporterService.js";
+  import { readStorage, writeStorage } from "$lib/services/storage.js";
   import SupporterModal from "$lib/components/SupporterModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
@@ -63,32 +69,32 @@
   // flags), so per-modal instances can't fight over the class. CSS rule:
   // body.modal-open { overflow: hidden; } in app.css.
   $: if (typeof document !== "undefined") {
-    document.body.classList.toggle("modal-open", showSupport || showAbout || showOptions || showIntro);
+    document.body.classList.toggle(
+      "modal-open",
+      showSupport || showAbout || showOptions || showIntro,
+    );
   }
 
   // First-visit intro — same localStorage pattern as the sibling apps
   // (cryptkeep's "seen_intro" / daysay's FIRST_VISIT). Shows once, then never
   // again. Reopenable any time via the footer's "about" entry.
   onMount(() => {
-    if (!localStorage.getItem("drshrink:seen_intro")) showIntro = true;
+    if (!readStorage("drshrink:seen_intro")) showIntro = true;
   });
 
   function dismissIntro() {
     showIntro = false;
-    localStorage.setItem("drshrink:seen_intro", "true");
+    writeStorage("drshrink:seen_intro", "true");
   }
   /** @type {Array<{name,inputSize,outputSize,saved,ratio,blob,grew,note}>} */
   let results = [];
   let autoDownload = browser
-    ? localStorage.getItem("drshrink-auto-download") !== "false"
+    ? readStorage("drshrink-auto-download") !== "false"
     : true;
 
   function toggleAutoDownload() {
     autoDownload = !autoDownload;
-    localStorage.setItem(
-      "drshrink-auto-download",
-      autoDownload ? "true" : "false",
-    );
+    writeStorage("drshrink-auto-download", autoDownload ? "true" : "false");
   }
 
   // Fused drop-zone state: idle | busy | done
@@ -107,6 +113,32 @@
   let popTimer = null;
   let displaySaved = 0; // count-up value for the total (bytes)
   let countRaf = null;
+
+  async function clearRecent() {
+    results = [];
+    countUpTo(0);
+    try {
+      await clearHistory();
+    } catch {
+      error =
+        "History cleared, but temporary files couldn't be removed. Clear this site's browser data to remove them.";
+    }
+  }
+
+  async function redownload(entry) {
+    try {
+      const cached = await retryDownload(entry);
+      if (cached) downloadBlob(cached.blob, cached.name);
+      else {
+        markExpired(entry);
+        error =
+          "That download is no longer cached. Drop the original file to shrink it again.";
+      }
+    } catch {
+      error =
+        "This browser couldn't read the cached file. Drop the original to shrink it again.";
+    }
+  }
 
   // ── Delight: randomized copy + the tickle easter egg ──
   let subtitle = dropSubtitle(); // rolls on load, re-rolls each return to idle
@@ -212,20 +244,27 @@
 
     const out = [];
     async function walk(entry) {
-      if (out.length >= MAX_FOLDER_FILES) return;
+      if (entry.name.startsWith(".")) return;
       if (entry.isFile) {
-        const f = await new Promise((res) =>
-          entry.file(res, () => res(null)),
-        );
+        const f = await new Promise((res, reject) => entry.file(res, reject));
         // skip dotfile junk a folder drags along (.DS_Store & friends)
-        if (f && !f.name.startsWith(".")) out.push(f);
+        if (f) {
+          if (out.length >= MAX_FOLDER_FILES)
+            throw new Error(
+              `This folder has more than ${MAX_FOLDER_FILES} files. Try smaller batches.`,
+            );
+          Object.defineProperty(f, "relativePath", {
+            value: entry.fullPath.replace(/^\//, ""),
+          });
+          out.push(f);
+        }
       } else if (entry.isDirectory) {
         const reader = entry.createReader();
         let batch;
         do {
           // readEntries hands back ≤100 per call — drain until empty
-          batch = await new Promise((res) =>
-            reader.readEntries(res, () => res([])),
+          batch = await new Promise((res, reject) =>
+            reader.readEntries(res, reject),
           );
           for (const en of batch) await walk(en);
         } while (batch.length);
@@ -251,7 +290,6 @@
     if (!gate.ok) {
       error = gate.reason;
       soundError();
-      if (gate.gated) showSupport = true;
       return;
     }
 
@@ -279,7 +317,19 @@
       for (const r of out) {
         const id = cacheId();
         putCache(id, r.name, r.type, r.blob).catch(() => {});
-        results = [{ ...r, blobId: id }, ...results].slice(0, 25);
+        // Keep recent downloads useful without holding gigabytes of old blobs.
+        let retainedBytes = r.blob.size;
+        const retained = [];
+        for (const previous of results) {
+          if (
+            retained.length >= 24 ||
+            retainedBytes + previous.blob.size > 100 * 1024 * 1024
+          )
+            break;
+          retained.push(previous);
+          retainedBytes += previous.blob.size;
+        }
+        results = [{ ...r, blobId: id }, ...retained];
         recordHistory(r, id);
         saved += Math.max(0, r.saved);
         inputTotal += r.inputSize || 0;
@@ -307,7 +357,9 @@
       // ffmpeg.wasm sometimes rejects with a plain string — never let a
       // falsy message swallow the error box into a silent no-op.
       error =
-        e?.message || String(e || "") || "Something went wrong mid-squeeze. Try again?";
+        e?.message ||
+        String(e || "") ||
+        "Something went wrong mid-squeeze. Try again?";
       phase = "idle";
       soundError();
     }
@@ -322,7 +374,13 @@
   function onDrop(e) {
     e.preventDefault();
     dragOver = false;
-    filesFromDrop(e.dataTransfer).then(handleFiles);
+    filesFromDrop(e.dataTransfer)
+      .then(handleFiles)
+      .catch((err) => {
+        error =
+          err?.message ||
+          "Couldn't read that folder. Try choosing its files instead.";
+      });
   }
 
   function onPick(e) {
@@ -343,7 +401,7 @@
 <PageLayout>
   <!-- gap-8→gap-5/6: the hero must land mascot + title + drop zone inside ONE
        viewport on a 1280×800 desktop — first impressions never scroll. -->
-  <div class="flex w-full flex-col items-center gap-5 md:gap-6">
+  <div class="shrink-hero flex w-full flex-col items-center gap-5 md:gap-6">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={mascotSlotEl}
@@ -372,7 +430,7 @@
         mascotDragOver = false;
         catching = true;
         setTimeout(() => (catching = false), 380);
-        filesFromDrop(e.dataTransfer).then(handleFiles);
+        onDrop(e);
       }}
     >
       {#if eggQuip}
@@ -411,6 +469,7 @@
         id="file-input"
         type="file"
         multiple
+        disabled={busy}
         class="sr-only"
         aria-label="Choose files to shrink"
         on:change={onPick}
@@ -435,14 +494,37 @@
         {/if}
       </span>
     </label>
+    <span class="sr-only" role="status" aria-live="polite"
+      >{busy ? busyLabel : toast}</span
+    >
 
     {#if error}
       <p
+        role="alert"
         class="rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500"
       >
         {error}
       </p>
     {/if}
+
+    <details class="format-guide">
+      <summary>What comes back?</summary>
+      <p>
+        Photos → WebP or a smaller image. Audio → MP3. Video → MP4. These
+        conversions can reduce quality; your originals stay untouched.
+      </p>
+      <p>
+        Single HTML and Word (.docx) files → plain text, with formatting and
+        images removed. Text and other files → gzip. Multiple files → one ZIP,
+        keeping document formats and folder paths.
+      </p>
+      <p>
+        PDF and animated images aren't shrunk. HEIC and TIFF depend on your
+        browser. Up to {LIMITS.free.maxBatch} files per drop, {LIMITS.free
+          .maxFileBytes /
+          (1024 * 1024)} MB each. Audio/video loads a 31 MB engine on first use.
+      </p>
+    </details>
 
     {#if results.length}
       <div class="w-full">
@@ -461,7 +543,11 @@
                       −{Math.round((1 - r.ratio) * 100)}%
                     </span>
                   {:else}
-                    <span class="text-gray-400">already tiny</span>
+                    <span class="text-gray-500"
+                      >{r.outputSize > r.inputSize
+                        ? "bundled, not smaller"
+                        : "kept original"}</span
+                    >
                   {/if}
                   {#if r.note}
                     <span class="text-gray-400">· {r.note}</span>
@@ -474,6 +560,15 @@
             </li>
           {/each}
         </ul>
+        {#if results.some((r) => r.saved > 0)}
+          <p class="support-note">
+            A little lighter? <a
+              href={SUPPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer">Buy the doc a coffee ☕</a
+            >
+          </p>
+        {/if}
       </div>
     {/if}
 
@@ -484,7 +579,8 @@
           <span>Recent ({$history.length})</span>
           <button
             class="clear"
-            on:click|preventDefault|stopPropagation={clearHistory}>clear</button
+            disabled={busy}
+            on:click|preventDefault|stopPropagation={clearRecent}>clear</button
           >
         </summary>
         <ul>
@@ -503,12 +599,7 @@
                   on:click={async (e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    const cached = await retryDownload(h);
-                    if (cached) downloadBlob(cached.blob, cached.name);
-                    else {
-                      markExpired(h);
-                      flashEgg("expired — files only stick around 30 min", 2200);
-                    }
+                    await redownload(h);
                   }}>↓</button
                 >
               {/if}
@@ -535,30 +626,79 @@
   on:close={() => (showOptions = false)}
   {autoDownload}
   onToggleAuto={toggleAutoDownload}
+  onClearHistory={clearRecent}
+  {busy}
 />
 <SupporterModal open={showSupport} on:close={() => (showSupport = false)} />
 
 <ShrinkConfetti bind:this={confetti} />
 
 <style>
+  .format-guide {
+    width: 100%;
+    color: #6b6671;
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+  .format-guide summary {
+    cursor: pointer;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .format-guide p + p {
+    margin-top: 0.6rem;
+  }
+  .support-note {
+    text-align: center;
+    color: #6b6671;
+    font-size: 0.85rem;
+    margin-top: 0.6rem;
+  }
+  .support-note a {
+    display: inline-block;
+    padding: 0.65rem 0;
+    color: var(--ds-accent-color);
+    font-weight: 700;
+  }
 
-	/* HERO-SPEC.md ink-parity: engine art runs ~86% full-bleed vs the ghost's
+  /* HERO-SPEC.md ink-parity: engine art runs ~86% full-bleed vs the ghost's
 	   ~68%; ~12%-of-slot padding inside the fixed family slot makes ink read
 	   ghost-sized (~168px @lg vs ghost 174, measured live 2026-07-21). Fixed px
 	   because %-padding resolves against the PARENT column width, not the slot. */
-	.mascot-slot {
-		padding: 21px;
-		box-sizing: border-box;
-	}
-	@media (min-width: 640px) {
-		.mascot-slot { padding: 23px; }
-	}
-	@media (min-width: 768px) {
-		.mascot-slot { padding: 27px; }
-	}
-	@media (min-width: 1024px) {
-		.mascot-slot { padding: 31px; }
-	}
+  .mascot-slot {
+    padding: 21px;
+    box-sizing: border-box;
+  }
+  @media (min-width: 640px) {
+    .mascot-slot {
+      padding: 23px;
+    }
+  }
+  @media (min-width: 768px) {
+    .mascot-slot {
+      padding: 27px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .mascot-slot {
+      padding: 31px;
+    }
+  }
+  @media (min-width: 768px) and (max-height: 900px) {
+    .shrink-hero {
+      gap: 1rem;
+    }
+    .mascot-slot {
+      height: 12rem;
+      width: 12rem;
+      padding: 23px;
+    }
+    .drop {
+      min-height: 140px;
+    }
+  }
   /* Short desktop viewports (squat laptops, ~1280×690): compress the hero
      ramp further so the drop zone always lands above the fold. */
   @media (min-width: 768px) and (max-height: 740px) {
@@ -568,6 +708,29 @@
     }
     .drop {
       min-height: 140px;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 740px) {
+    .shrink-hero {
+      gap: 1rem;
+    }
+    .mascot-slot {
+      width: 9rem;
+      height: 9rem;
+      padding: 17px;
+    }
+    .drop {
+      min-height: 140px;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 600px) {
+    .mascot-slot {
+      width: 7rem;
+      height: 7rem;
+      padding: 13px;
+    }
+    .drop {
+      min-height: 120px;
     }
   }
 
@@ -775,6 +938,10 @@
   .drop:hover {
     border-color: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.7);
   }
+  .drop:focus-within {
+    outline: 2px solid var(--ds-accent-color);
+    outline-offset: 4px;
+  }
   /* micro-bounce — tactile squish on press (Comeau one-liner) */
   .drop:active {
     transform: scale(0.985);
@@ -865,6 +1032,7 @@
     padding: 0.75rem 1rem;
   }
   .dl {
+    min-height: 44px;
     flex-shrink: 0;
     border-radius: 999px;
     background: #9333ea;
@@ -915,6 +1083,8 @@
     display: none;
   }
   .history .clear {
+    min-height: 44px;
+    min-width: 44px;
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--ds-accent-color, #c026d3);
@@ -949,8 +1119,8 @@
   }
   .h-dl {
     flex-shrink: 0;
-    width: 24px;
-    height: 24px;
+    width: 44px;
+    height: 44px;
     border-radius: 999px;
     background: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.12);
     color: var(--ds-primary-color, #9333ea);

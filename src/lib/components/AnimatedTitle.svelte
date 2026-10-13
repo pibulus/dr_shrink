@@ -151,6 +151,18 @@
     }
   }
 
+  @media (min-width: 768px) and (max-height: 900px) {
+    h1.staggered-text {
+      font-size: 5rem;
+      line-height: 1.1;
+    }
+    .slide-in-subtitle {
+      margin-top: 0;
+      margin-bottom: 0;
+      font-size: 1.15rem;
+    }
+  }
+
   /* Short desktop viewports: pull the title down a size so the hero +
      drop zone stay inside one screen. */
   @media (min-width: 768px) and (max-height: 740px) {
@@ -183,6 +195,19 @@
     .suffix-wrapper {
       transform: scale(0.95);
       right: 0.05em;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 740px) {
+    .slide-in-subtitle {
+      margin-top: 0;
+      margin-bottom: 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 600px) {
+    h1.staggered-text {
+      font-size: 2.6rem;
     }
   }
 

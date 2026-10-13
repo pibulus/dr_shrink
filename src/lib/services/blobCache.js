@@ -14,6 +14,7 @@ const DB_NAME = "drshrink-blobs";
 const STORE = "blobs";
 const TTL = 30 * 60 * 1000; // 30 minutes
 const MAX = 10;
+let pendingWrites = Promise.resolve();
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -40,10 +41,15 @@ export function cacheId() {
  * Store a compressed blob for later re-download.
  * Cleans up expired + excess entries as a side effect.
  */
-export async function putCache(id, name, type, blob) {
+export function putCache(id, name, type, blob) {
+  const write = pendingWrites.then(() => writeCache(id, name, type, blob));
+  pendingWrites = write.catch(() => {});
+  return write;
+}
+
+async function writeCache(id, name, type, blob) {
   if (!browser) return;
   const db = await openDB();
-  const buffer = await blob.arrayBuffer();
   const now = Date.now();
 
   // Scan existing entries (readonly tx) to know what to clean.
@@ -52,15 +58,19 @@ export async function putCache(id, name, type, blob) {
     const tx = db.transaction(STORE, "readonly");
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(new Error("transaction aborted"));
-    const req = tx.objectStore(STORE).index("at").openCursor(null, "prev");
+    // Read keys only: cloning every cached buffer could exhaust browser memory.
+    const req = tx.objectStore(STORE).index("at").openKeyCursor(null, "prev");
     req.onsuccess = () => {
       const c = req.result;
       if (c) {
-        items.push(c.value);
+        items.push({ id: c.primaryKey, at: c.key });
         c.continue();
       } else r(items);
     };
     req.onerror = () => reject(req.error);
+  }).catch((err) => {
+    db.close();
+    throw err;
   });
 
   // Cleanup + put in a single readwrite tx.
@@ -78,7 +88,7 @@ export async function putCache(id, name, type, blob) {
     store.delete(item.id);
   }
 
-  store.put({ id, buffer, name, type, at: now });
+  store.put({ id, blob, name, type, at: now });
 
   return new Promise((r, reject) => {
     tx.oncomplete = () => {
@@ -102,19 +112,43 @@ export async function putCache(id, name, type, blob) {
 export async function getCache(id) {
   if (!browser) return null;
   const db = await openDB();
-  const entry = await new Promise((resolve, reject) => {
-    const req = db.transaction(STORE, "readonly").objectStore(STORE).get(id);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  db.close();
+  let entry;
+  try {
+    entry = await new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, "readonly").objectStore(STORE).get(id);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  } finally {
+    db.close();
+  }
   if (!entry) return null;
   if (Date.now() - entry.at > TTL) {
     // lazy-delete on next write — just don't hand it back
     return null;
   }
   return {
-    blob: new Blob([entry.buffer], { type: entry.type }),
+    // Older cache entries stored an ArrayBuffer; retain their download window.
+    blob: entry.blob || new Blob([entry.buffer], { type: entry.type }),
     name: entry.name,
   };
+}
+
+/** Delete temporary results when the user clears their history. */
+export async function clearCache() {
+  if (!browser) return;
+  // Finish accepted writes before clearing, so they cannot recreate cleared files.
+  await pendingWrites;
+  const db = await openDB();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, "readwrite");
+      tx.objectStore(STORE).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(new Error("transaction aborted"));
+    });
+  } finally {
+    db.close();
+  }
 }

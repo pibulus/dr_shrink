@@ -8,7 +8,7 @@
 
 import { writable } from "svelte/store";
 import { browser } from "$app/environment";
-import { getCache } from "./blobCache.js";
+import { getCache, clearCache } from "./blobCache.js";
 
 const KEY = "drshrink-history";
 const MAX_ENTRIES = 25;
@@ -17,7 +17,12 @@ function load() {
   if (!browser) return [];
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list)
+      ? list
+          .filter((entry) => entry && typeof entry.name === "string")
+          .slice(0, MAX_ENTRIES)
+      : [];
   } catch {
     return [];
   }
@@ -47,7 +52,7 @@ export function recordHistory(r, blobId) {
     inputSize: r.inputSize,
     outputSize: r.outputSize,
     saved: Math.max(0, r.saved),
-    pct: r.ratio ? Math.round((1 - r.ratio) * 100) : 0,
+    pct: Math.max(0, Math.round((1 - r.ratio) * 100)),
     grew: !!r.grew,
     note: r.note || "",
     blobId: blobId || null,
@@ -63,6 +68,7 @@ export function recordHistory(r, blobId) {
 export function clearHistory() {
   history.set([]);
   persist([]);
+  return clearCache();
 }
 
 // Date.now() is fine in app code (only the workflow sandbox forbids it).

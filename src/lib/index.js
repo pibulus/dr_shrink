@@ -2,12 +2,13 @@
 import { writable } from "svelte/store";
 import { browser } from "$app/environment";
 import { THEMES, DEFAULT_THEME, STORAGE_KEYS } from "./constants.js";
+import { readStorage, writeStorage } from "./services/storage.js";
 
 const valid = new Set(Object.values(THEMES));
 
 function readInitial() {
   if (!browser) return DEFAULT_THEME;
-  const stored = localStorage.getItem(STORAGE_KEYS.THEME);
+  const stored = readStorage(STORAGE_KEYS.THEME);
   return stored && valid.has(stored) ? stored : DEFAULT_THEME;
 }
 
@@ -18,7 +19,7 @@ export function applyTheme(id) {
   const safe = valid.has(id) ? id : DEFAULT_THEME;
   theme.set(safe);
   if (browser) {
-    localStorage.setItem(STORAGE_KEYS.THEME, safe);
+    writeStorage(STORAGE_KEYS.THEME, safe);
     document.documentElement.setAttribute("data-theme", safe);
   }
 }

@@ -1,5 +1,5 @@
 // ===================================================================
-// SUPPORTER — $9/yr contributor pass (trust-based, client-side)
+// SUPPORT — optional tips; legacy/dev contributor codes retained below.
 // ===================================================================
 //
 // No DRM, no server. Contributor gets a code → enters it → SHA-256
@@ -13,6 +13,9 @@
 
 import { writable } from "svelte/store";
 import { browser } from "$app/environment";
+import { readStorage, writeStorage, removeStorage } from "./storage.js";
+
+export const SUPPORT_URL = "https://ko-fi.com/madebypablo";
 
 const KEY = "drshrink-supporter";
 const KEY_EXPIRES = "drshrink-supporter-expires";
@@ -33,14 +36,14 @@ export const LIMITS = {
 
 function readInitial() {
   if (!browser) return false;
-  const flag = localStorage.getItem(KEY) === "true";
+  const flag = readStorage(KEY) === "true";
   if (!flag) return false;
   // Check expiry
-  const raw = localStorage.getItem(KEY_EXPIRES);
-  if (raw && Date.now() > parseInt(raw, 10)) {
+  const raw = readStorage(KEY_EXPIRES);
+  if (raw && (!Number.isFinite(Number(raw)) || Date.now() >= Number(raw))) {
     // Expired — clear the flag
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(KEY_EXPIRES);
+    removeStorage(KEY);
+    removeStorage(KEY_EXPIRES);
     return false;
   }
   return true;
@@ -51,10 +54,10 @@ export const isSupporter = writable(readInitial());
 export function setSupporter(on) {
   if (browser) {
     if (on) {
-      localStorage.setItem(KEY, "true");
+      writeStorage(KEY, "true");
     } else {
-      localStorage.removeItem(KEY);
-      localStorage.removeItem(KEY_EXPIRES);
+      removeStorage(KEY);
+      removeStorage(KEY_EXPIRES);
     }
   }
   isSupporter.set(!!on);
@@ -93,8 +96,8 @@ export async function redeemCode(code) {
   const hash = await hashCode(c);
   if (VALID_CODE_HASHES.has(hash)) {
     const expires = Date.now() + SUPPORTER_TERM_MS;
-    localStorage.setItem(KEY, "true");
-    localStorage.setItem(KEY_EXPIRES, String(expires));
+    writeStorage(KEY, "true");
+    writeStorage(KEY_EXPIRES, String(expires));
     isSupporter.set(true);
     return true;
   }
@@ -104,7 +107,7 @@ export async function redeemCode(code) {
 /** Days remaining on the current contributor pass, or 0. */
 export function daysRemaining() {
   if (!browser) return 0;
-  const raw = localStorage.getItem(KEY_EXPIRES);
+  const raw = readStorage(KEY_EXPIRES);
   if (!raw) return 0;
   const remaining = parseInt(raw, 10) - Date.now();
   return Math.max(0, Math.ceil(remaining / (24 * 60 * 60 * 1000)));
@@ -117,17 +120,14 @@ export function limitsFor(supporter) {
 
 /**
  * Check a drop against the limits. Returns { ok, reason } — reason is a
- * user-facing string + a flag so the UI can nudge toward Support.
+ * user-facing string. Tips do not change these limits.
  */
 export function checkDrop(files, supporter) {
   const lim = limitsFor(supporter);
   if (files.length > lim.maxBatch) {
     return {
       ok: false,
-      gated: !supporter, // only nudge people who don't already have the pass
-      reason: supporter
-        ? `That's ${files.length} files — browser memory tops out around ${lim.maxBatch} per drop. Split it up?`
-        : `Free plan handles ${lim.maxBatch} files at once. Support the doc for up to ${LIMITS.supporter.maxBatch}.`,
+      reason: `That's ${files.length} files — DrShrink handles up to ${lim.maxBatch} per drop. Try smaller batches.`,
     };
   }
   const tooBig = files.find((f) => f.size > lim.maxFileBytes);
@@ -135,10 +135,7 @@ export function checkDrop(files, supporter) {
     const mb = Math.round(lim.maxFileBytes / (1024 * 1024));
     return {
       ok: false,
-      gated: !supporter,
-      reason: supporter
-        ? `"${tooBig.name}" is over the ${mb} MB per-file ceiling — that's the browser's limit, not a paywall.`
-        : `"${tooBig.name}" is over the ${mb} MB free limit. Support the doc for bigger files.`,
+      reason: `"${tooBig.name}" is over DrShrink's ${mb} MB per-file limit. Try a smaller file.`,
     };
   }
   return { ok: true };

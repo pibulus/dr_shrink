@@ -2,6 +2,7 @@
   import { createEventDispatcher } from "svelte";
   import ThemeMascot from "./ThemeMascot.svelte";
   import { theme } from "$lib";
+  import { dialogFocus } from "$lib/services/dialogFocus.js";
 
   export let open = false;
 
@@ -42,6 +43,7 @@
 {#if open}
   <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
+      use:dialogFocus
       class="box"
       class:closing
       role="dialog"
@@ -49,7 +51,7 @@
       aria-labelledby="about-title"
       tabindex="-1"
       on:click|stopPropagation
-      on:keydown|stopPropagation
+      on:keydown={onKeydown}
     >
       <button class="x" on:click={close} aria-label="Close">×</button>
 
@@ -78,8 +80,10 @@
         <p class="quote">"Drop it. Shrink it. Done."</p>
 
         <p class="privacy">
-          🔒 Your files never leave your device. Nothing is uploaded, logged, or
-          kept.
+          🔒 Your files aren't uploaded. Recent filenames and savings stay in
+          this browser. The last 10 downloads are cached locally and available
+          for up to 30 minutes. Clear Recent to remove them. The site counts
+          visits; file contents aren't sent to the counter.
         </p>
 
         <!-- SKELETON link set 4/4: mascot icon + GitHub (bare profile) + Ko-fi + privacy one-liner -->

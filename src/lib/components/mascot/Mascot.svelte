@@ -486,6 +486,7 @@
 		   clipping. Art also carries ~10% internal padding for headroom. */
 		overflow: visible;
 		/* Safari-specific fixes for flashing */
+		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 		-webkit-transform: translateZ(0);
 		transform: translateZ(0);
@@ -543,6 +544,7 @@
 		position: relative;
 		z-index: 1;
 		/* Safari-specific fixes */
+		backface-visibility: hidden;
 		-webkit-backface-visibility: hidden;
 		-webkit-transform: translateZ(0);
 		transform: translateZ(0);

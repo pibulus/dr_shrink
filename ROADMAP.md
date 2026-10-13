@@ -11,12 +11,12 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 - Drag/drop or click → compress, single + batch
 - **Drop onto the mascot** — drag files over the brain (glow + scale up, catch animation)
 - **Images** → WebP q0.86 + re-encode candidate, 4K cap, EXIF-upright, skips pointless
-  re-encodes, refuses animated GIFs/WebPs, supports JPEG/PNG/WebP/BMP/GIF/TIFF
+  re-encodes, refuses animated GIFs/PNGs/WebPs, supports JPEG/PNG/WebP/BMP/GIF/TIFF
 - **SVG** → minified in-place (strips comments/whitespace/cruft → `.min.svg`)
 - **Video** → H.264 mp4 via ffmpeg.wasm (CRF 28, ultrafast preset, AAC 128k audio)
 - **Audio** → VBR mp3 via ffmpeg.wasm (q5, ~128kbps) — MP3/WAV/M4A/AAC/OGG/FLAC/AIFF
 - **Text/code** → gzip level 9, `.html` → plain text, `.docx` → text (mammoth)
-- **Batch** → one `.zip` (each shrinkable file compressed first, audio/video included)
+- **Batch** → one `.zip` (images/media compressed first, document formats preserved)
 - Batch OOM guard (300MB total input cap)
 - Already-compressed detection (politely refuses archives + PDF; HEIC tried as an
   image — Safari converts it, elsewhere a friendly "export as JPEG" nudge)
@@ -29,7 +29,7 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 - Rhythmic mascot pulse during processing, confetti burst on big wins
 - History (localStorage, stats only) + re-download button per entry
 - Gentle Web Audio sounds + mute toggle
-- About / Options / Support modals, contributor code system
+- About / Options / Support modals, optional Ko-fi tips
 - Tickle easter egg (rapid-click the doctor)
 - SoftStack parity (cream bg, dark-ink title, big mascot), responsive, SEO/OG/PWA
 - Deployed on the Pi via cloudflared → drshrink.app
@@ -50,21 +50,22 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
   on photos, when the native Canvas WebP isn't enough. _(medium; lazy)_
 - **Animated GIF → animated WebP** — currently refused to avoid flattening; convert
   instead. _(small-medium; ffmpeg.wasm already loaded)_
-- **XLSX / PPTX text extraction** — like DOCX but for spreadsheets and slides.
+- **XLSX / PPTX text extraction** — like single-file DOCX extraction but for spreadsheets and slides.
   _(small; similar zip+XML approach)_
 
-### Monetization (turn the stub into real)
+### Monetization (beyond optional tips)
 
-- **Real checkout** — wire LemonSqueezy / Stripe / Polar for the $9/yr. The gating
-  structure + limits already exist; just needs the payment + a license/code issuer.
+- **Real checkout** — consider the existing TalkType Square approach if a useful
+  paid pass emerges. It needs verified payments, activation, recovery and
+  a clear promise. Launch uses optional Ko-fi tips; no $9/year pass is offered.
 - **Contributor perks** — beyond just bigger limits:
   - **Format choice** — "give me JPEG not WebP", "keep PNG transparency"
   - **Quality target** — "smaller" vs "keep quality" (two presets, not a slider)
   - **Batch output organization** — subfolders in the zip, naming patterns
   - **History export** (CSV) + extended cache TTL
   - **Priority access** to PDF, HEIC when they land
-- **Issue real contributor codes** — generated/redeemable codes for gifts + multi-device.
-  _(small once checkout exists)_
+- **Issue real contributor codes** — only once purchase and recovery work across
+  devices; the old hash-code utilities are dormant, not a shipped checkout.
 
 ### Workers & performance
 

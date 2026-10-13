@@ -204,9 +204,7 @@
         Got it
       </button>
     {:else}
-      <p class="pwa-line">
-        Opens instantly from your home screen, works offline.
-      </p>
+      <p class="pwa-line">Keep DrShrink a tap away on your home screen.</p>
       <button type="button" class="pwa-cta" on:click={handleInstall}>
         Add to home screen
       </button>
@@ -220,7 +218,7 @@
     position: fixed;
     right: 1rem;
     bottom: 5.5rem;
-    z-index: 900; /* under modals (9999), over page content */
+    z-index: 40; /* under dialogs (50/60), above the footer (10) */
     width: min(20rem, calc(100vw - 2rem));
     padding: 1rem 1rem 0.9rem;
     border: 1px solid rgba(var(--ds-primary-color-rgb, 236, 72, 153), 0.28);
@@ -242,8 +240,8 @@
     position: absolute;
     top: 0.3rem;
     right: 0.3rem;
-    width: 26px;
-    height: 26px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -269,8 +267,8 @@
   }
   @media (pointer: coarse) {
     .pwa-dismiss {
-      width: 34px;
-      height: 34px;
+      width: 44px;
+      height: 44px;
     }
   }
 
@@ -337,7 +335,7 @@
 
   .pwa-cta {
     width: 100%;
-    min-height: 42px;
+    min-height: 44px;
     padding: 0.55rem 0.9rem;
     border-radius: 12px;
     font-size: 0.85rem;

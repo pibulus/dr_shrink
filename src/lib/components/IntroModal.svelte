@@ -10,6 +10,7 @@
   import { createEventDispatcher } from "svelte";
   import { Mascot } from "$lib/components/mascot";
   import { theme } from "$lib";
+  import { dialogFocus } from "$lib/services/dialogFocus.js";
 
   export let open = false;
 
@@ -54,6 +55,7 @@
 {#if open}
   <div class="overlay" class:closing role="presentation" on:click={close}>
     <div
+      use:dialogFocus
       class="box"
       class:closing
       role="dialog"
@@ -61,7 +63,7 @@
       aria-labelledby="intro-title"
       tabindex="-1"
       on:click|stopPropagation
-      on:keydown|stopPropagation
+      on:keydown={onKeydown}
     >
       <button class="x" type="button" on:click={close} aria-label="Close"
         >×</button
@@ -92,7 +94,8 @@
       </ul>
 
       <p class="privacy">
-        🔒 Your files never leave your device. Nothing is uploaded or kept.
+        🔒 Files aren't uploaded. Recent downloads are cached in this browser
+        for up to 30 minutes. Clear Recent to remove them.
       </p>
 
       <button class="cta" type="button" on:click={close}>

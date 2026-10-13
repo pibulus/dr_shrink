@@ -1,12 +1,14 @@
 # DrShrink launch assessment — 13 October 2026
 
-**The current live version needs these fixes before promotion.** A live browser
-reproduced `toBlobURL is not defined` on a WAV upload. The updated local
-production build successfully converts audio and video under the real CSP.
+**Verdict: SHIP the free app.** The fixes are deployed at **drshrink.app** and
+verified against that origin. The original live version failed WAV uploads with
+`toBlobURL is not defined`; the deployed version converts audio/video under the
+production CSP and recovers from failed jobs without a reload.
 
-**Local verdict: ready for a small free launch with optional Ko-fi tips, after
-deploying and checking the live build.** A physical-phone pass and a real tip
-remain unverified release checks. The current live version has not been changed.
+Optional Ko-fi tipping is integrated, but its recipient/payout setup and a real
+settled payment remain unverified. Pablo reports the app works on his phone;
+the updated release has Chromium and WebKit coverage, not a new physical-device
+test performed by this audit.
 A paid pass remains future work: copying TalkType's Square checkout alone would
 not provide DrShrink's purchase verification, activation, recovery and support.
 
@@ -42,6 +44,23 @@ not provide DrShrink's purchase verification, activation, recovery and support.
   and do not promise activation or higher limits. No automatic popup after use.
 - **Dependencies:** apply compatible audit patches without forced major upgrades;
   add missing Node types and resolve the CSS compatibility warnings.
+- **Hosting:** identify the actual home-server origin, deploy with a staged smoke
+  check and backup, and correct the visitor-counter label to `drshrink.app`.
+
+## Deployment
+
+The custom domain uses the home server's `drshrink` service on port 9017 through
+Cloudflare. Its `.pibulus-meta` confirms the deployed source commit. The first
+release was `635b793d330b961789d69f69d174a73eec4b3896`, deployed at
+2026-10-13T19:45:53+11:00. The final deployed app commit is
+`a390015bbfe80305e26019c8ae3a90fd2826075e`, confirmed at
+2026-10-13T19:49:45+11:00, including the counter-label correction.
+Backups are retained in `/home/pibulus/backups/apps/drshrink-*`.
+
+The separate Netlify preview at
+`https://6acdedf2d7b60c917ba63f07--drshrink-netlify.netlify.app` also passed the
+browser and stress suites. A Netlify publication alone would not update
+`drshrink.app`; no domain or tunnel changes were needed.
 
 ## Verification
 
@@ -55,9 +74,11 @@ not provide DrShrink's purchase verification, activation, recovery and support.
   5-file ZIP integrity/document preservation/collisions, PDF refusal, limit
   guidance, history re-download after refresh, saved theme, cache clearing,
   and compression with both localStorage and IndexedDB blocked.
-- Runtime diagnostics: no page errors or CSP violations in the local Chromium
-  pass. The only non-GET network request was the site visit counter; no file
-  upload occurred in the exercised flows.
+- The 31-check browser suite passed locally, on the Netlify preview, and on
+  `https://drshrink.app`, including actual image, WAV, MP4 and ZIP downloads.
+- Runtime diagnostics: no page errors or CSP violations. Non-GET requests on
+  the custom domain were the Fleetcount visit counter and Cloudflare's injected
+  performance beacon (`/cdn-cgi/rum`); no file upload occurred in tested flows.
 - `ffprobe`: output is valid MP3 (2 seconds) and H.264/yuv420p MP4 (160×120,
   1 second).
 - WebKit at 375×812: gzip round-trip and real WASM audio conversion pass without
@@ -65,24 +86,31 @@ not provide DrShrink's purchase verification, activation, recovery and support.
 - Chromium layouts at 1280×800, 1024×768, 768×768, 1366×690, 320×568,
   375×667, 375×812 and 390×812: the complete drop target stays above the fixed
   footer. Mobile checks have no horizontal overflow and Support fits.
+- The 11-case stress suite passed locally, on the Netlify preview, and live:
+  malformed audio followed by valid audio; failed-media preservation in a batch;
+  a second drop while processing; interrupted engine download and retry; folder
+  paths with duplicate basenames; unreadable folders; 401-file refusal without
+  truncation; file-size refusal; corrupt saved history; repeated jobs, eviction
+  and stale download errors; clearing history after pending cache writes.
+- After the final deployment, fresh Chromium and WebKit mobile sessions passed
+  gzip byte round-trips and WAV→MP3 downloads again, with no runtime/console
+  errors. The visit counter accepted `site=drshrink.app` (HTTP 204).
+- Live share image: valid 1200×630 PNG. App manifest: served successfully.
 
 Local browser scripts, downloads, screenshots, logs and audit JSON are in
 `.playwright-mcp/launch-audit/` (ignored by Git). The smoke scripts use the
 existing Playwright installation in the neighbouring TalkType checkout.
 
-## Remaining release checks and limits
+## Remaining external checks and known limits
 
-1. **Deploy and verify the new live build.** This assessment changes local files;
-   it does not deploy or claim the current production site contains the fixes.
-   Repeat an image, WAV and ZIP download on the live origin, checking CSP.
-2. **One actual Ko-fi tip.** The external page presents an anti-bot challenge to
+1. **One actual Ko-fi tip.** The external page presents an anti-bot challenge to
    automated requests; neither receipt, recipient identity nor settled payment
    has been verified. Confirm the linked page belongs to Pablo and complete a
    small human payment before treating income as proven. No payment was made.
-3. **Physical iPhone/Safari and Android:** picker/drop where available, download
+2. **Physical iPhone/Safari and Android:** picker/drop where available, download
    naming, playback and memory behavior. Automated mobile viewport/WebKit tests
    do not prove device behavior, especially around WASM memory.
-4. **Deliberate reach limits:** no PDF shrink; HEIC/TIFF depend on browser decoders;
+3. **Deliberate reach limits:** no PDF shrink; HEIC/TIFF depend on browser decoders;
    no service worker/offline loading. Single HTML/DOCX extraction removes
    formatting and images. Canvas/media encoding can reduce quality. Browser
    compression and ZIP creation can still block the main thread on larger jobs;
@@ -90,7 +118,7 @@ existing Playwright installation in the neighbouring TalkType checkout.
    automatic downloads during the long smoke sequence; the ZIP completed and
    the explicit Download button worked. The auto-download toggle and manual
    download path were verified, rather than bypassing that browser limit.
-5. **Audit remainder:** `npm audit --omit=dev` reports three moderate findings
+4. **Audit remainder:** `npm audit --omit=dev` reports three moderate findings
    (`sprintf-js`, `argparse`, `mammoth`) from Mammoth's command-line argument
    parser. The app imports `mammoth/lib/index.js` for browser extraction; that
    path does not import `argparse`. This is an assessed, bounded exposure, not a
@@ -100,7 +128,7 @@ existing Playwright installation in the neighbouring TalkType checkout.
    reaches SvelteKit even though it is declared as a development dependency;
    this app sets no application cookies. Forced Tailwind/SvelteKit/Vitest major
    migrations were outside this pass.
-6. **Local cache is a convenience, not a backup.** Only the last ten outputs are
+5. **Local cache is a convenience, not a backup.** Only the last ten outputs are
    cached, quota can reject writes, and expired files are cleaned on later
    writes. Recent filenames/stats persist until cleared. Original source files
    remain on the user's device.

@@ -48,8 +48,13 @@
   <button type="button" class={btn} on:click={() => dispatch("showOptions")}>
     Options
   </button>
-  <button type="button" class={btn} on:click={() => dispatch("showSupport")}>
-    {$isSupporter ? "Contributor ✓" : "Support"}
+  <button
+    type="button"
+    class="{btn} footer-pass"
+    class:is-unlocked={$isSupporter}
+    on:click={() => dispatch("showSupport")}
+  >
+    {$isSupporter ? "Passport ✓" : "Passport"}
   </button>
   <button type="button" class={btn} on:click={shareApp} aria-label="Share DrShrink">
     Share
@@ -70,5 +75,48 @@
     outline-offset: 2px;
     background-color: rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.14);
     color: var(--ds-accent-color, #c026d3);
+  }
+  /* The Passport pill — the footer's one bit of colour (TalkType pattern). */
+  .footer-pass {
+    border-radius: 999px;
+    background: var(--ds-accent-color, #c026d3);
+    color: #fffdf7;
+    border: 2px solid #1e1714;
+    box-shadow: 2px 2px 0 #1e1714;
+    font-weight: 900;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+    transition:
+      transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 0.15s ease,
+      filter 0.15s ease;
+  }
+  .footer-pass:hover {
+    background: var(--ds-accent-color, #c026d3);
+    color: #fffdf7;
+    filter: brightness(1.06);
+    transform: translateY(-1px);
+    box-shadow: 3px 3px 0 #1e1714;
+  }
+  .footer-pass:active {
+    transform: translateY(1px);
+    box-shadow: 1px 1px 0 #1e1714;
+  }
+  .footer-pass.is-unlocked {
+    background: #fffdf7;
+    color: #1e1714;
+  }
+  .footer-pass.is-unlocked:hover {
+    background: #fffdf7;
+    color: #1e1714;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .footer-pass {
+      transition: none;
+    }
+    .footer-pass:hover,
+    .footer-pass:active {
+      transform: none;
+    }
   }
 </style>

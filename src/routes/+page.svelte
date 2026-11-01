@@ -16,13 +16,16 @@
     checkDrop,
     limitsFor,
     limitMB,
+    handleUrlUnlock,
     SUPPORT_URL,
   } from "$lib/services/supporterService.js";
+  import { shrinkPrefs, effectivePrefs } from "$lib/services/shrinkPrefs.js";
   import { readStorage, writeStorage } from "$lib/services/storage.js";
-  import SupporterModal from "$lib/components/SupporterModal.svelte";
+  import PassportModal from "$lib/components/PassportModal.svelte";
   import AboutModal from "$lib/components/AboutModal.svelte";
   import OptionsModal from "$lib/components/OptionsModal.svelte";
   import IntroModal from "$lib/components/IntroModal.svelte";
+  import ShrinkStyleCard from "$lib/components/ShrinkStyleCard.svelte";
   import ShrinkConfetti from "$lib/components/ShrinkConfetti.svelte";
   import {
     history,
@@ -62,9 +65,17 @@
   let pulseInterval = null; // rhythmic pulse during processing
   let error = "";
   let showSupport = false;
+  let supportSource = "footer"; // footer | about | options | limit | link
   let showAbout = false;
   let showOptions = false;
   let showIntro = false;
+
+  function openPassport(source = "footer") {
+    showAbout = false;
+    showOptions = false;
+    supportSource = source;
+    showSupport = true;
+  }
 
   // Body scroll-lock while any modal is open — one owner (the page holds the
   // flags), so per-modal instances can't fight over the class. CSS rule:
@@ -79,7 +90,15 @@
   // First-visit intro — same localStorage pattern as the sibling apps
   // (cryptkeep's "seen_intro" / daysay's FIRST_VISIT). Shows once, then never
   // again. Reopenable any time via the footer's "about" entry.
-  onMount(() => {
+  onMount(async () => {
+    // A /u/<code> link or emailed passkey lands here as ?unlock= — redeem it
+    // before anything else so the Passport modal opens already "ready".
+    const { unlocked } = await handleUrlUnlock();
+    if (unlocked) {
+      writeStorage("drshrink:seen_intro", "true");
+      openPassport("link");
+      return;
+    }
     if (!readStorage("drshrink:seen_intro")) showIntro = true;
   });
 
@@ -151,6 +170,8 @@
   $: busy = phase === "busy";
   $: squeezing = busy; // drives the CSS squish on the mascot slot
   $: limits = limitsFor($isSupporter);
+  $: prefs = effectivePrefs($shrinkPrefs, $isSupporter);
+  let limitHit = false; // the last refusal was a ceiling — offer the Passport
 
   function flashEgg(msg, ms = 1400) {
     eggQuip = msg;
@@ -289,13 +310,15 @@
     }
     error = "";
 
-    // Supporter gate (size / batch limits)
+    // Ceiling gate (size / batch limits)
     const gate = checkDrop(files, $isSupporter);
     if (!gate.ok) {
       error = gate.reason;
+      limitHit = !$isSupporter;
       soundError();
       return;
     }
+    limitHit = false;
 
     soundDrop();
     soundShrink(); // the descending "squeeze" whoosh as crunching begins
@@ -311,6 +334,7 @@
     try {
       const out = await compress(files, {
         maxBatchBytes: limits.maxBatchBytes,
+        prefs,
         onProgress: (p) => {
           determinate = true;
           progress = Math.max(0, Math.min(1, p));
@@ -510,11 +534,15 @@
 
     <div class="below-fold flex w-full flex-col items-center gap-4 md:gap-5">
     {#if error}
-      <p
-        role="alert"
-        class="rounded-xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500"
-      >
+      <p role="alert" class="refusal">
         {error}
+        {#if limitHit}
+          <button
+            type="button"
+            class="refusal-link"
+            on:click={() => openPassport("limit")}>The Passport lifts the ceiling.</button
+          >
+        {/if}
       </p>
     {/if}
 
@@ -627,26 +655,61 @@
     <FooterComponent
       on:showAbout={() => (showAbout = true)}
       on:showOptions={() => (showOptions = true)}
-      on:showSupport={() => (showSupport = true)}
+      on:showSupport={() => openPassport("footer")}
     />
   </svelte:fragment>
 </PageLayout>
 
 <IntroModal open={showIntro} on:close={dismissIntro} />
-<AboutModal open={showAbout} on:close={() => (showAbout = false)} />
+<AboutModal
+  open={showAbout}
+  on:close={() => (showAbout = false)}
+  on:showPassport={() => openPassport("about")}
+/>
 <OptionsModal
   open={showOptions}
   on:close={() => (showOptions = false)}
+  on:showPassport={() => openPassport("options")}
   {autoDownload}
   onToggleAuto={toggleAutoDownload}
   onClearHistory={clearRecent}
   {busy}
+>
+  <ShrinkStyleCard
+    slot="shrink-style"
+    locked={!$isSupporter}
+    on:unlock={() => openPassport("options")}
+  />
+</OptionsModal>
+<PassportModal
+  open={showSupport}
+  source={supportSource}
+  on:close={() => (showSupport = false)}
 />
-<SupporterModal open={showSupport} on:close={() => (showSupport = false)} />
 
 <ShrinkConfetti bind:this={confetti} />
 
 <style>
+  /* Soft refusal: warm rose on cream, never red. */
+  .refusal {
+    border-radius: 0.9rem;
+    border: 2px solid rgba(196, 96, 122, 0.35);
+    background: rgba(196, 96, 122, 0.08);
+    padding: 0.55rem 0.9rem;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.45;
+    color: #a24f68;
+    text-align: center;
+  }
+  .refusal-link {
+    display: inline;
+    margin-left: 0.25rem;
+    font-weight: 800;
+    color: var(--ds-primary-color, #9333ea);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
   .format-guide {
     width: 100%;
     color: #6b6671;

@@ -33,3 +33,6 @@ npm-debug.log*
 
 # Scaffold stub assets (kept locally, not committed)
 _stub_assets/
+
+# Passport license store (box only)
+data/

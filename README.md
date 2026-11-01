@@ -22,7 +22,7 @@ Archives (zip/gz/7z/rar) get politely refused; PDF is refused with a roadmap
 nod; HEIC is attempted — Safari decodes it natively, other browsers get a
 friendly "export as JPEG first".
 
-**File processing runs client-side.** Files are not uploaded. There are no accounts. A visit counter sends page-visit metadata, not file contents. Recent filenames and savings are saved locally; the last 10 outputs are cached in IndexedDB and available for up to 30 minutes. Clear Recent removes the history and cached outputs. Expired outputs are cleaned on subsequent writes. Installing the app does not currently provide offline loading.
+**File processing runs client-side.** Files are not uploaded. There are no accounts (the Passport is a code, not a login). A visit counter sends page-visit metadata, not file contents. Recent filenames and savings are saved locally; the last 10 outputs are cached in IndexedDB and available for up to 30 minutes. Clear Recent removes the history and cached outputs. Expired outputs are cleaned on subsequent writes. Installing the app does not currently provide offline loading.
 
 ## Vibe
 
@@ -49,17 +49,27 @@ npm run lint     # prettier + eslint
 
 Four themes (vibrant / warm / cool / minimal) via `html[data-theme]` + `--ds-*` CSS custom properties. The mascot recolors with the theme. See `src/lib/styles/theme-variables.css`.
 
-## Support
+## Support & Passport
 
-Optional tips through [Pablo's Ko-fi](https://ko-fi.com/madebypablo), offered in
-Support and after a successful shrink. People choose their amount. Tips do not
-unlock features or change limits; there is no paid pass or automatic entitlement
-issuance. A real tip still needs a human check on Ko-fi.
-
-Public limits: 200 MB/file, 40 files/drop, 300 MB per zip batch (`LIMITS` in
+Free is the whole product: drop anything, get the one right answer, generous
+limits (200 MB/file, 40 files/drop, 300 MB per zip batch — `LIMITS` in
 `src/lib/services/supporterService.js`; the batch ceiling is a memory guard,
-not a paywall). Legacy contributor state/code utilities remain compatible, but
-no paid plan is advertised or sold by the app yet — see `docs/PASSPORT-PLAN.md`.
+not a paywall).
+
+The **DrShrink Passport** (A$9, once, permanent — `src/lib/config/pricing.js`)
+opens the dials: output format (WebP/JPEG/PNG/AVIF), three quality presets,
+"fit under 8/10/25 MB", max size, audio out of video, loose batches, and
+500 MB / 200-file ceilings. Prefs live in `src/lib/services/shrinkPrefs.js`;
+free runs the defaults no matter what is stored.
+
+Checkout is Square (payment link + webhook), codes are `DS-XXXX-XXXX-XXXX`
+with a four-word passkey, and `/u/<code>` is a one-tap unlock link. Server
+routes live under `src/routes/api/passport` and `src/routes/api/square`; the
+app shrinks files fine with none of it configured (the routes answer 503).
+Setup, env vars and verification: [docs/PASSPORT-SERVER.md](docs/PASSPORT-SERVER.md).
+Product thinking: [docs/PASSPORT-PLAN.md](docs/PASSPORT-PLAN.md).
+
+Optional tips still go through [Ko-fi](https://ko-fi.com/madebypablo).
 
 Single HTML/DOCX inputs extract plain text, removing formatting and images.
 Batch ZIPs preserve these document formats and folder paths. Image/audio/video

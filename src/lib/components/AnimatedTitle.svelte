@@ -38,7 +38,7 @@
             color="inherit"
             size="35%"
             offsetX="-0.6em"
-            offsetY="8px"
+            offsetY="0px"
             position="bottom-right"
             customClass="title-suffix"
           />
@@ -55,7 +55,11 @@
 </p>
 
 <style>
+  /* 1.1, not the inherited 1.5: a 90px word in a 135px box reads as a loose
+     gap to both the mascot and the subtitle. 1.1 still clears descenders and
+     the .app suffix, which rides inside the h1. (TalkType parity.) */
   .staggered-text {
+    line-height: 1.1;
     opacity: 1;
     font-feature-settings: "kern" 1;
     font-kerning: normal;
@@ -143,36 +147,30 @@
     font-variation-settings: inherit;
   }
 
-  /* Slightly-short desktop viewports (e.g. 1024×768): trim the subtitle's
-     air first — cheapest 10px, invisible to the eye. */
-  @media (min-width: 768px) and (max-height: 790px) {
+  /* Short-viewport ramp. These DEGRADE FROM the TalkType geometry above; they
+     must never fire on a normal 1280×800 / 1440×900 desktop (the old 900px
+     threshold did, shrinking the whole hero and leaving ~300px of dead space
+     under the drop zone). Thresholds mirror TalkType's mascot ramp (820/650)
+     with one middle step for squat laptops (1280×720, 1366×768). */
+  @media (min-width: 768px) and (max-height: 780px) {
     .slide-in-subtitle {
-      margin-bottom: 0.875rem;
-    }
-  }
-
-  @media (min-width: 768px) and (max-height: 900px) {
-    h1.staggered-text {
-      font-size: 5rem;
-      line-height: 1.1;
-    }
-    .slide-in-subtitle {
-      margin-top: 0;
-      margin-bottom: 0;
+      margin-top: 0.75rem;
+      margin-bottom: 1rem;
       font-size: 1.15rem;
     }
   }
-
-  /* Short desktop viewports: pull the title down a size so the hero +
-     drop zone stay inside one screen. */
   @media (min-width: 768px) and (max-height: 740px) {
     h1.staggered-text {
-      font-size: 3.5rem;
-      line-height: 1.05;
+      font-size: 4.5rem;
     }
     .slide-in-subtitle {
       margin-top: 0.5rem;
       margin-bottom: 0.75rem;
+    }
+  }
+  @media (min-width: 768px) and (max-height: 650px) {
+    h1.staggered-text {
+      font-size: 3.5rem;
     }
   }
 
@@ -199,8 +197,8 @@
   }
   @media (max-width: 640px) and (max-height: 740px) {
     .slide-in-subtitle {
-      margin-top: 0;
-      margin-bottom: 0;
+      margin-top: 0.5rem;
+      margin-bottom: 0.75rem;
       font-size: 0.95rem;
       line-height: 1.4;
     }

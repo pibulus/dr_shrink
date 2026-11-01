@@ -62,12 +62,16 @@
       justify-content: flex-start;
     }
   }
+  /* Desktop top padding = TalkType's live value (measured 2026-11-01: mascot
+     lands at y=80 @1280×800, y=90 @1440×900). The old clamp(1.5rem,5vh,3rem)
+     seated the doctor 40px higher than the ghost and left ~300px of dead
+     cream under the drop zone on a 900px screen. */
   @media (min-width: 768px) {
     .page-shell {
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
-      padding-top: clamp(1.5rem, 5vh, 3rem) !important;
+      padding-top: clamp(3rem, 10vh, 9rem) !important;
     }
   }
   @media (max-width: 640px) and (max-height: 740px) {

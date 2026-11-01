@@ -14,7 +14,8 @@
   import {
     isSupporter,
     checkDrop,
-    LIMITS,
+    limitsFor,
+    limitMB,
     SUPPORT_URL,
   } from "$lib/services/supporterService.js";
   import { readStorage, writeStorage } from "$lib/services/storage.js";
@@ -149,6 +150,7 @@
 
   $: busy = phase === "busy";
   $: squeezing = busy; // drives the CSS squish on the mascot slot
+  $: limits = limitsFor($isSupporter);
 
   function flashEgg(msg, ms = 1400) {
     eggQuip = msg;
@@ -234,8 +236,10 @@
   // Folders arrive in dataTransfer.files as unreadable pseudo-Files (reading
   // them throws). Expand them into their real contents instead — the entry
   // handles must be grabbed synchronously, before the event goes stale.
-  const MAX_FOLDER_FILES = 400;
+  // The walk stops one past the tier's batch cap so checkDrop can phrase the
+  // refusal with the real count instead of us scanning a 10k-file tree.
   function filesFromDrop(dt) {
+    const maxFolderFiles = limits.maxBatch + 1;
     const entries = [...(dt.items || [])]
       .map((it) => it.webkitGetAsEntry?.())
       .filter(Boolean);
@@ -249,9 +253,9 @@
         const f = await new Promise((res, reject) => entry.file(res, reject));
         // skip dotfile junk a folder drags along (.DS_Store & friends)
         if (f) {
-          if (out.length >= MAX_FOLDER_FILES)
+          if (out.length >= maxFolderFiles)
             throw new Error(
-              `This folder has more than ${MAX_FOLDER_FILES} files. Try smaller batches.`,
+              `That folder holds more than ${limits.maxBatch} files — one drop takes up to ${limits.maxBatch}.`,
             );
           Object.defineProperty(f, "relativePath", {
             value: entry.fullPath.replace(/^\//, ""),
@@ -306,6 +310,7 @@
 
     try {
       const out = await compress(files, {
+        maxBatchBytes: limits.maxBatchBytes,
         onProgress: (p) => {
           determinate = true;
           progress = Math.max(0, Math.min(1, p));
@@ -399,13 +404,16 @@
 </script>
 
 <PageLayout>
-  <!-- gap-8→gap-5/6: the hero must land mascot + title + drop zone inside ONE
-       viewport on a 1280×800 desktop — first impressions never scroll. -->
-  <div class="shrink-hero flex w-full flex-col items-center gap-5 md:gap-6">
+  <!-- HERO-SPEC.md margin stack (TalkType parity, measured 2026-11-01):
+       mascot mb-4/md:mb-0 → h1 mb-1 → subtitle mt-3 mb-6 (sm:mt-6 sm:mb-7)
+       → CTA section pt-2 pb-4. No flex gap here — the old gap-5/6 stacked on
+       top of those margins and seated everything 16–24px looser than the
+       ghost. Everything below the drop zone gets its own gapped column. -->
+  <div class="shrink-hero flex w-full flex-col items-center">
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       bind:this={mascotSlotEl}
-      class="mascot-slot h-44 w-44 sm:h-48 sm:w-48 md:h-56 md:w-56 lg:h-64 lg:w-64"
+      class="mascot-slot mb-4 h-44 w-44 sm:h-48 sm:w-48 md:mb-0 md:h-56 md:w-56 lg:h-64 lg:w-64"
       class:squeezing
       class:popping
       class:catching
@@ -443,7 +451,7 @@
         theme={$theme}
         {busy}
         ariaLabel={busy
-          ? "DrShrink mascot — shrinking your files"
+          ? "DrShrink mascot — shrinking files"
           : "DrShrink mascot — choose a file"}
         on:activate={() => {
           if (onMascotPoke()) document.getElementById("file-input")?.click();
@@ -453,6 +461,7 @@
 
     <AnimatedTitle />
 
+    <div class="action-section w-full pb-4 pt-2">
     <!-- Drop zone — fused with progress + toast (TalkType pattern) -->
     <label
       for="file-input"
@@ -497,7 +506,9 @@
     <span class="sr-only" role="status" aria-live="polite"
       >{busy ? busyLabel : toast}</span
     >
+    </div>
 
+    <div class="below-fold flex w-full flex-col items-center gap-4 md:gap-5">
     {#if error}
       <p
         role="alert"
@@ -511,7 +522,7 @@
       <summary>What comes back?</summary>
       <p>
         Photos → WebP or a smaller image. Audio → MP3. Video → MP4. These
-        conversions can reduce quality; your originals stay untouched.
+        conversions can reduce quality; the originals stay untouched.
       </p>
       <p>
         Single HTML and Word (.docx) files → plain text, with formatting and
@@ -519,10 +530,11 @@
         keeping document formats and folder paths.
       </p>
       <p>
-        PDF and animated images aren't shrunk. HEIC and TIFF depend on your
-        browser. Up to {LIMITS.free.maxBatch} files per drop, {LIMITS.free
-          .maxFileBytes /
-          (1024 * 1024)} MB each. Audio/video loads a 31 MB engine on first use.
+        PDF and animated images aren't shrunk. HEIC and TIFF depend on the
+        browser. Up to {limits.maxBatch} files per drop, {limitMB(
+          limits.maxFileBytes,
+        )} MB each, {limitMB(limits.maxBatchBytes)} MB per zip batch.
+        Audio/video loads a 31 MB engine on first use.
       </p>
     </details>
 
@@ -608,6 +620,7 @@
         </ul>
       </details>
     {/if}
+    </div>
   </div>
 
   <svelte:fragment slot="footer-buttons">
@@ -686,41 +699,28 @@
       padding: 31px;
     }
   }
-  @media (min-width: 768px) and (max-height: 900px) {
-    .shrink-hero {
-      gap: 1rem;
-    }
+  /* Short-viewport mascot ramp — same thresholds as TalkType's ghost
+     (12rem under 820px, 9rem under 650px) so the two heroes degrade in
+     lockstep. The drop zone always lands above the fold at 1280×720+. */
+  @media (min-width: 768px) and (max-height: 820px) {
     .mascot-slot {
       height: 12rem;
       width: 12rem;
       padding: 23px;
     }
-    .drop {
-      min-height: 140px;
-    }
   }
-  /* Short desktop viewports (squat laptops, ~1280×690): compress the hero
-     ramp further so the drop zone always lands above the fold. */
-  @media (min-width: 768px) and (max-height: 740px) {
+  @media (min-width: 768px) and (max-height: 650px) {
     .mascot-slot {
-      height: 10rem !important;
-      width: 10rem !important;
-    }
-    .drop {
-      min-height: 140px;
+      height: 9rem !important;
+      width: 9rem !important;
+      padding: 17px;
     }
   }
   @media (max-width: 640px) and (max-height: 740px) {
-    .shrink-hero {
-      gap: 1rem;
-    }
     .mascot-slot {
       width: 9rem;
       height: 9rem;
       padding: 17px;
-    }
-    .drop {
-      min-height: 140px;
     }
   }
   @media (max-width: 640px) and (max-height: 600px) {
@@ -729,16 +729,12 @@
       height: 7rem;
       padding: 13px;
     }
-    .drop {
-      min-height: 120px;
-    }
   }
 
   .mascot-slot {
-    /* big hero mascot, matching talktype/ziplist — responsive ramp:
-       h-44 w-44 → lg:h-56/w-56 (~176px base → 224px desktop) via Tailwind
-       classes in the markup. Kept below the old 256px so the whole hero +
-       drop zone fits a 1280×800 viewport. Inner SVG fills 100% of the slot. */
+    /* big hero mascot, matching talktype/ziplist — the family slot ramp
+       176/192/224/256px (h-44 → lg:h-64) via Tailwind classes in the markup.
+       Inner SVG fills the padded art box. */
     position: relative;
     transform-origin: center bottom;
     will-change: transform;
@@ -920,7 +916,9 @@
     position: relative;
     overflow: hidden;
     width: 100%;
-    min-height: 168px;
+    /* 148px: roomy drop target, but the whole hero + zone + "What comes
+       back?" still clears the footer on a 1366×768 laptop at full geometry. */
+    min-height: 148px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1019,6 +1017,19 @@
   @media (prefers-reduced-motion: reduce) {
     .drop-fill.indeterminate {
       animation: none;
+    }
+  }
+  /* After the base .drop rule so the cascade actually honours these — the
+     old copies sat above it and silently lost. */
+  @media (min-width: 768px) and (max-height: 740px),
+    (max-width: 640px) and (max-height: 740px) {
+    .drop {
+      min-height: 132px;
+    }
+  }
+  @media (max-width: 640px) and (max-height: 600px) {
+    .drop {
+      min-height: 116px;
     }
   }
 

@@ -9,14 +9,27 @@
 // docx, ffmpeg.wasm for audio/video) are lazy-imported only when their type is dropped.
 
 import { zipSync, gzipSync } from "fflate";
+import { DEFAULT_PREFS, sanitizePrefs } from "./shrinkPrefs.js";
 
-// ── quality knobs (80/20: one good default each, no UI) ──
-// Utility first: the output must still LOOK GOOD, not just be a small number.
-// 0.86 WebP is visually near-lossless for photos while still cutting size a lot.
-const IMAGE_QUALITY = 0.86;
+// ── quality knobs ──
+// Free runs ONE good default per type (no UI). The Passport picks a preset —
+// still no sliders. Utility first: the output must still LOOK GOOD, not just
+// be a small number. 0.86 WebP is visually near-lossless for photos while
+// still cutting size a lot.
+export const PRESETS = {
+  lean: { image: 0.74, mp3q: "7", crf: "31", aac: "96k" },
+  balanced: { image: 0.86, mp3q: "5", crf: "28", aac: "128k" },
+  crisp: { image: 0.93, mp3q: "2", crf: "24", aac: "160k" },
+};
+/** Resolve a prefs object (or nothing) into the concrete knobs for a run. */
+export function presetFor(prefs) {
+  const p = sanitizePrefs(prefs);
+  return { ...PRESETS[p.quality], ...p };
+}
 // Generous cap — only downscale genuinely huge images (phone photos are ~4000px);
 // keep them usable for printing/zoom, don't shrink to a web thumbnail.
-const MAX_DIMENSION = 3840;
+// (DEFAULT_PREFS.maxDim; a Passport can pick 2K / 1080p / original.)
+const MB = 1024 * 1024;
 // If we'd save less than this fraction, it's not worth degrading — keep original.
 const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
 // Batch safety fallback: if total input exceeds this, refuse — zip holds all
@@ -103,6 +116,21 @@ function loadImage(file) {
 function canvasToBlob(canvas, type, quality) {
   return new Promise((r) => canvas.toBlob((b) => r(b), type, quality));
 }
+// AVIF encoding is Chrome-only for now (Canvas silently hands back PNG
+// elsewhere). Probe once with a 1×1 and cache the verdict.
+let _avif = null;
+export async function supportsAvif() {
+  if (_avif !== null) return _avif;
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 1;
+    const b = await canvasToBlob(c, "image/avif", 0.5);
+    _avif = b?.type === "image/avif";
+  } catch {
+    _avif = false;
+  }
+  return _avif;
+}
 // Detect an animated GIF or WebP (multiple frames) so we don't silently
 // flatten it to a single frame via Canvas.
 async function isAnimatedImage(file) {
@@ -175,7 +203,41 @@ async function decodeImage(file) {
   return loadImage(file);
 }
 
-async function compressImage(file) {
+const EXT = {
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/avif": "avif",
+};
+
+// Draw the decoded image onto a canvas no larger than maxDim on its long side.
+function drawScaled(img, maxDim) {
+  let { width, height } = img;
+  const longest = Math.max(width, height);
+  if (maxDim && longest > maxDim) {
+    const k = maxDim / longest;
+    width = Math.max(1, Math.round(width * k));
+    height = Math.max(1, Math.round(height * k));
+  }
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+  return canvas;
+}
+
+// Encode in the requested format; Canvas quietly hands back PNG when an
+// encoder is missing, so check the type that came back.
+async function encodeAs(canvas, type, quality) {
+  const b = await canvasToBlob(
+    canvas,
+    type,
+    type === "image/png" ? undefined : quality,
+  );
+  return b && b.type === type ? b : null;
+}
+
+async function compressImage(file, prefs) {
   // Don't wreck animated GIFs/WebPs — Canvas can only capture frame 1.
   if (await isAnimatedImage(file)) {
     throw new Error(
@@ -192,48 +254,83 @@ async function compressImage(file) {
       : "is it a real image?";
     throw new Error(`Couldn't read ${file.name} — ${hint}`);
   }
-  let { width, height } = img;
-  const longest = Math.max(width, height);
-  if (longest > MAX_DIMENSION) {
-    const k = MAX_DIMENSION / longest;
-    width = Math.round(width * k);
-    height = Math.round(height * k);
+
+  const knobs = presetFor(prefs);
+  const isJpegSrc = file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name);
+  const notes = [];
+
+  // Which encoders to try. Free/default: webp + the source family (the
+  // smallest wins). Passport: the chosen format only, so the pick is honoured.
+  let targets;
+  if (knobs.format === "webp") {
+    targets = ["image/webp", isJpegSrc ? "image/jpeg" : "image/png"];
+  } else if (knobs.format === "avif") {
+    if (await supportsAvif()) targets = ["image/avif"];
+    else {
+      targets = ["image/webp"];
+      notes.push("avif unsupported here, webp instead");
+    }
+  } else if (knobs.format === "jpeg") {
+    targets = ["image/jpeg"];
+  } else {
+    targets = ["image/png"];
   }
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  canvas.getContext("2d").drawImage(img, 0, 0, width, height);
-  img.close?.(); // free the ImageBitmap's pixel buffer right away
 
-  const candidates = [];
-  const webp = await canvasToBlob(canvas, "image/webp", IMAGE_QUALITY);
-  // Canvas falls back to PNG when a requested encoder isn't available.
-  if (webp?.type === "image/webp")
-    candidates.push({ blob: webp, ext: "webp", type: webp.type });
-  // Only jpeg sources re-encode to jpeg — anything else may carry alpha,
-  // which jpeg flattens onto black.
-  const srcType =
-    file.type === "image/jpeg" || /\.jpe?g$/i.test(file.name)
-      ? "image/jpeg"
-      : "image/png";
-  const reSrc = await canvasToBlob(
-    canvas,
-    srcType,
-    srcType === "image/jpeg" ? IMAGE_QUALITY : undefined,
-  );
-  if (reSrc)
-    candidates.push({
-      blob: reSrc,
-      ext: srcType === "image/png" ? "png" : "jpg",
-      type: srcType,
-    });
+  const fitBytes = knobs.fitUnder ? knobs.fitUnder * MB : 0;
+  let maxDim = knobs.maxDim;
+  let quality = knobs.image;
+  let canvas = drawScaled(img, maxDim);
 
-  candidates.sort((a, b) => a.blob.size - b.blob.size);
-  const best = candidates[0];
+  async function encodeBest(q) {
+    const out = [];
+    for (const t of targets) {
+      const b = await encodeAs(canvas, t, q);
+      if (b) out.push({ blob: b, type: t, ext: EXT[t] });
+    }
+    out.sort((a, b) => a.blob.size - b.blob.size);
+    return out[0] || null;
+  }
+
+  let best = await encodeBest(quality);
+
+  // Fit under N MB: walk quality down first (cheap, keeps pixels), then step
+  // the long side down until it fits. Bounded — a handful of encodes, never
+  // a runaway loop on a 100 MB TIFF.
+  if (fitBytes && best && best.blob.size > fitBytes) {
+    let tries = 0;
+    const floorQ = targets[0] === "image/png" ? quality : 0.5;
+    while (best.blob.size > fitBytes && tries < 10) {
+      tries++;
+      if (quality - 0.08 >= floorQ) {
+        quality = +(quality - 0.08).toFixed(2);
+      } else {
+        const longest = Math.max(canvas.width, canvas.height);
+        if (longest <= 800) break;
+        maxDim = Math.max(800, Math.round(longest * 0.85));
+        canvas = drawScaled(img, maxDim);
+      }
+      const next = await encodeBest(quality);
+      if (!next) break;
+      if (next.blob.size < best.blob.size) best = next;
+    }
+    notes.push(
+      best.blob.size <= fitBytes
+        ? `fits under ${knobs.fitUnder} MB`
+        : `closest to ${knobs.fitUnder} MB`,
+    );
+  }
+  img.close?.(); // free the ImageBitmap's pixel buffer
 
   // Utility guard: if re-encoding barely helps (or grows it), keep the original
-  // rather than hand back a degraded file for a meaningless saving.
-  if (!best || best.blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
+  // rather than hand back a degraded file for a meaningless saving. When a
+  // target size is on and the source is over it, any shrink is worth having.
+  const mustShrink = fitBytes && file.size > fitBytes;
+  const worthwhile =
+    best &&
+    (mustShrink
+      ? best.blob.size < file.size
+      : best.blob.size <= file.size * (1 - MIN_WORTHWHILE_SAVING));
+  if (!worthwhile) {
     return result(
       file,
       file.name,
@@ -247,6 +344,7 @@ async function compressImage(file) {
     `${baseName(file.name)}.min.${best.ext}`,
     best.type,
     file.size,
+    notes.join(" · "),
   );
 }
 
@@ -402,35 +500,84 @@ function keptOriginal(file, fallbackType) {
     "already efficient — kept original",
   );
 }
-async function compressAudio(file, onProgress) {
+// Media duration in seconds via a metadata-only <audio>/<video> load — no
+// ffprobe in the wasm build. 0 when the browser can't tell.
+function mediaDuration(file, tag) {
+  return new Promise((resolve) => {
+    try {
+      const el = document.createElement(tag);
+      const url = URL.createObjectURL(file);
+      const done = (d) => (URL.revokeObjectURL(url), resolve(d));
+      el.preload = "metadata";
+      el.onloadedmetadata = () =>
+        done(Number.isFinite(el.duration) ? el.duration : 0);
+      el.onerror = () => done(0);
+      el.src = url;
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
+// For a size target, the bitrate that lands the whole file under it, with a
+// 4% container margin. Clamped to a sane range so speech never turns to mud.
+function bitrateForTarget(targetBytes, seconds, min, max) {
+  if (!seconds) return 0;
+  const kbps = Math.floor(((targetBytes * 8) / seconds / 1000) * 0.96);
+  return Math.max(min, Math.min(max, kbps));
+}
+
+async function runFFmpeg(ff, file, args) {
+  const rc = await ff.exec(args);
+  assertExecOk(rc, file);
+}
+
+// ── audio → mp3 (lazy ffmpeg, single-thread core) ──
+async function compressAudio(file, onProgress, prefs) {
   const ff = await getFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
+  const knobs = presetFor(prefs);
   const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
   const outName = "output.mp3";
+  const notes = ["re-encoded mp3"];
   try {
     await ff.writeFile(inName, await fetchFile(file));
-    // 80/20: a sane VBR mp3 (~quality 5, ~128kbps avg) — much smaller, fine for most.
-    const rc = await ff.exec([
+    const fitBytes = knobs.fitUnder ? knobs.fitUnder * MB : 0;
+    let codecArgs = ["-qscale:a", knobs.mp3q]; // VBR — the good default
+    if (fitBytes && file.size > fitBytes) {
+      // Over the target: pick a CBR bitrate that lands under it.
+      const secs = await mediaDuration(file, "audio");
+      const kbps = bitrateForTarget(fitBytes, secs, 32, 192);
+      if (kbps) codecArgs = ["-b:a", `${kbps}k`];
+    }
+    await runFFmpeg(ff, file, [
       "-i",
       inName,
+      "-vn",
       "-codec:a",
       "libmp3lame",
-      "-qscale:a",
-      "5",
+      ...codecArgs,
       outName,
     ]);
-    assertExecOk(rc, file);
     const data = await ff.readFile(outName);
     const blob = new Blob([data], { type: "audio/mpeg" });
-    if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
-      return keptOriginal(file, "audio/*");
-    }
+    if (fitBytes)
+      notes.push(
+        blob.size <= fitBytes
+          ? `fits under ${knobs.fitUnder} MB`
+          : `closest to ${knobs.fitUnder} MB`,
+      );
+    const mustShrink = fitBytes && file.size > fitBytes;
+    const worthwhile = mustShrink
+      ? blob.size < file.size
+      : blob.size <= file.size * (1 - MIN_WORTHWHILE_SAVING);
+    if (!worthwhile) return keptOriginal(file, "audio/*");
     return result(
       blob,
       `${baseName(file.name)}.min.mp3`,
       "audio/mpeg",
       file.size,
-      "re-encoded mp3",
+      notes.join(" · "),
     );
   } finally {
     await ff.deleteFile(inName).catch(() => {});
@@ -438,49 +585,112 @@ async function compressAudio(file, onProgress) {
   }
 }
 
-// ── video → re-encode mp4 (same lazy ffmpeg.wasm) ──
-async function compressVideo(file, onProgress) {
+// ── video → mp4 (same lazy ffmpeg.wasm), or just its audio as mp3 ──
+async function compressVideo(file, onProgress, prefs) {
   const ff = await getFFmpeg(onProgress);
   const { fetchFile } = await import("@ffmpeg/util");
+  const knobs = presetFor(prefs);
   const inName = "in_" + file.name.replace(/[^\w.]/g, "_");
+  const fitBytes = knobs.fitUnder ? knobs.fitUnder * MB : 0;
+
+  // Audio only: strip the picture, keep the words. Tiny, and often the point.
+  if (knobs.audioOnly) {
+    const outName = "output.mp3";
+    try {
+      await ff.writeFile(inName, await fetchFile(file));
+      let codecArgs = ["-qscale:a", knobs.mp3q];
+      if (fitBytes) {
+        const secs = await mediaDuration(file, "video");
+        const kbps = bitrateForTarget(fitBytes, secs, 32, 192);
+        if (kbps) codecArgs = ["-b:a", `${kbps}k`];
+      }
+      await runFFmpeg(ff, file, [
+        "-i",
+        inName,
+        "-vn",
+        "-codec:a",
+        "libmp3lame",
+        ...codecArgs,
+        outName,
+      ]);
+      const data = await ff.readFile(outName);
+      const blob = new Blob([data], { type: "audio/mpeg" });
+      return result(
+        blob,
+        `${baseName(file.name)}.mp3`,
+        "audio/mpeg",
+        file.size,
+        "audio only",
+      );
+    } finally {
+      await ff.deleteFile(inName).catch(() => {});
+      await ff.deleteFile(outName).catch(() => {});
+    }
+  }
+
   const outName = "output.mp4";
-  try {
-    await ff.writeFile(inName, await fetchFile(file));
-    // 80/20: CRF 28 + ultrafast preset — good shrink, bearable WASM speed.
-    // CRF 28 is the sweet spot (23 = near-lossless, 32 = visibly compressed).
-    const rc = await ff.exec([
+  const encode = (crf, aac, vf) =>
+    runFFmpeg(ff, file, [
       "-i",
       inName,
       "-c:v",
       "libx264",
       "-crf",
-      "28",
+      crf,
       "-pix_fmt",
       "yuv420p",
       "-vf",
-      "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+      vf,
       "-preset",
       "ultrafast",
       "-c:a",
       "aac",
       "-b:a",
-      "128k",
+      aac,
       "-movflags",
       "+faststart",
       outName,
     ]);
-    assertExecOk(rc, file);
-    const data = await ff.readFile(outName);
-    const blob = new Blob([data], { type: "video/mp4" });
-    if (blob.size > file.size * (1 - MIN_WORTHWHILE_SAVING)) {
-      return keptOriginal(file, "video/*");
+  const even = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+  const notes = ["re-encoded mp4"];
+  try {
+    await ff.writeFile(inName, await fetchFile(file));
+    // CRF 28 + ultrafast is the sweet spot (23 = near-lossless, 32 = visibly
+    // compressed) at a bearable WASM speed. Presets move it 24 / 28 / 31.
+    await encode(knobs.crf, knobs.aac, even);
+    let data = await ff.readFile(outName);
+    let blob = new Blob([data], { type: "video/mp4" });
+
+    // One bounded second pass for a size target: harder CRF and a 720p cap.
+    // WASM video is slow — two passes is the honest limit.
+    if (fitBytes && blob.size > fitBytes) {
+      await ff.deleteFile(outName).catch(() => {});
+      await encode(
+        String(Math.min(40, Number(knobs.crf) + 6)),
+        "96k",
+        "scale='min(1280,iw)':-2," + even,
+      );
+      data = await ff.readFile(outName);
+      const second = new Blob([data], { type: "video/mp4" });
+      if (second.size < blob.size) blob = second;
+      notes.push(
+        blob.size <= fitBytes
+          ? `fits under ${knobs.fitUnder} MB`
+          : `closest to ${knobs.fitUnder} MB`,
+      );
     }
+
+    const mustShrink = fitBytes && file.size > fitBytes;
+    const worthwhile = mustShrink
+      ? blob.size < file.size
+      : blob.size <= file.size * (1 - MIN_WORTHWHILE_SAVING);
+    if (!worthwhile) return keptOriginal(file, "video/*");
     return result(
       blob,
       `${baseName(file.name)}.min.mp4`,
       "video/mp4",
       file.size,
-      "re-encoded mp4",
+      notes.join(" · "),
     );
   } finally {
     await ff.deleteFile(inName).catch(() => {});
@@ -489,7 +699,7 @@ async function compressVideo(file, onProgress) {
 }
 
 // ── batch → single .zip (shrink each shrinkable file first, then bundle) ──
-async function zipFiles(files, onProgress, maxBatchBytes) {
+async function zipFiles(files, onProgress, maxBatchBytes, prefs) {
   const inputTotal = files.reduce((a, f) => a + f.size, 0);
   const cap = maxBatchBytes || DEFAULT_MAX_BATCH_BYTES;
   if (inputTotal > cap) {
@@ -520,8 +730,11 @@ async function zipFiles(files, onProgress, maxBatchBytes) {
       try {
         // scale per-file ffmpeg progress into this file's slice of the batch
         const idx = i;
-        const r = await compressOne(f, (p) =>
-          onProgress?.((idx + Math.max(0, Math.min(1, p))) / files.length),
+        const r = await compressOne(
+          f,
+          (p) =>
+            onProgress?.((idx + Math.max(0, Math.min(1, p))) / files.length),
+          prefs,
         );
         // only keep the compressed version if it actually got smaller
         if (r.outputSize < f.size) {
@@ -556,17 +769,44 @@ async function zipFiles(files, onProgress, maxBatchBytes) {
   );
 }
 
+// Loose batch (Passport): every file comes back on its own, no zip. Each
+// result carries its own error-or-output; one bad file never sinks the rest.
+async function looseFiles(files, onProgress, prefs) {
+  const out = [];
+  let i = 0;
+  for (const f of files) {
+    const idx = i++;
+    onProgress?.(idx / files.length);
+    try {
+      out.push(
+        await compressOne(
+          f,
+          (p) =>
+            onProgress?.((idx + Math.max(0, Math.min(1, p))) / files.length),
+          prefs,
+        ),
+      );
+    } catch (e) {
+      out.push(keptOriginal(f, "application/octet-stream"));
+      out[out.length - 1].note = e?.message || "left untouched";
+    }
+  }
+  onProgress?.(1);
+  return out;
+}
+
 /**
- * Compress one file by its type. `onProgress(0..1)` is used for slow ops (audio/video).
+ * Compress one file by its type. `onProgress(0..1)` is used for slow ops
+ * (audio/video). `prefs` (optional) are the Passport dials — see shrinkPrefs.
  */
-export async function compressOne(file, onProgress) {
+export async function compressOne(file, onProgress, prefs = DEFAULT_PREFS) {
   if (isSvg(file)) return compressSvg(file);
-  if (isImage(file)) return compressImage(file);
+  if (isImage(file)) return compressImage(file, prefs);
   if (isDocx(file)) return compressDocx(file);
   if (isHtml(file)) return compressHtml(file);
   if (isText(file)) return compressText(file);
-  if (isAudio(file)) return compressAudio(file, onProgress);
-  if (isVideo(file)) return compressVideo(file, onProgress);
+  if (isAudio(file)) return compressAudio(file, onProgress, prefs);
+  if (isVideo(file)) return compressVideo(file, onProgress, prefs);
   if (PDF_RE.test(file.name)) {
     throw new Error(
       `PDF squeezing isn't in the doctor's kit yet — it's on the roadmap.`,
@@ -580,15 +820,21 @@ export async function compressOne(file, onProgress) {
 }
 
 /**
- * Top-level entry. Single file → its handler. Multiple files → one .zip.
- * Returns an array of results.
+ * Top-level entry. Single file → its handler. Multiple files → one .zip
+ * (or one result per file when prefs.looseBatch). Returns an array.
  */
-export async function compress(fileList, { onProgress, maxBatchBytes } = {}) {
+export async function compress(
+  fileList,
+  { onProgress, maxBatchBytes, prefs = DEFAULT_PREFS } = {},
+) {
   const files = [...fileList];
   if (files.length === 0) return [];
-  if (files.length > 1)
-    return [await zipFiles(files, onProgress, maxBatchBytes)];
-  return [await compressOne(files[0], onProgress)];
+  const p = sanitizePrefs(prefs);
+  if (files.length > 1) {
+    if (p.looseBatch) return looseFiles(files, onProgress, p);
+    return [await zipFiles(files, onProgress, maxBatchBytes, p)];
+  }
+  return [await compressOne(files[0], onProgress, p)];
 }
 
 export function downloadBlob(blob, name) {

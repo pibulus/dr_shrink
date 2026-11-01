@@ -15,13 +15,72 @@ vi.mock("@ffmpeg/util", () => ({
   fetchFile: async (file) => new Uint8Array(await file.arrayBuffer()),
 }));
 
-let compress;
+let compress, presetFor, PRESETS;
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
-  ({ compress } = await import("./compressService.js"));
+  ({ compress, presetFor, PRESETS } = await import("./compressService.js"));
 });
 afterEach(() => vi.useRealTimers());
+
+describe("passport dials", () => {
+  it("resolves presets and falls back to balanced for junk", () => {
+    expect(presetFor({ quality: "lean" }).crf).toBe(PRESETS.lean.crf);
+    expect(presetFor({ quality: "nope" }).image).toBe(PRESETS.balanced.image);
+    expect(presetFor(undefined).format).toBe("webp");
+    expect(presetFor({ format: "avif", fitUnder: 10 }).fitUnder).toBe(10);
+  });
+
+  it("loose batches return one result per file and never zip", async () => {
+    const files = [
+      new File(["a".repeat(2000)], "a.txt"),
+      new File(["abc"], "tiny.txt"),
+    ];
+    const out = await compress(files, { prefs: { looseBatch: true } });
+    expect(out).toHaveLength(2);
+    expect(out[0].name).toBe("a.txt.gz");
+    expect(out[1].name).toBe("tiny.txt");
+  });
+
+  it("loose batches keep going past a refused file", async () => {
+    const out = await compress(
+      [new File(["x"], "pack.zip"), new File(["b".repeat(2000)], "b.txt")],
+      { prefs: { looseBatch: true } },
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0].name).toBe("pack.zip");
+    expect(out[0].note).toMatch(/already compressed/);
+    expect(out[1].name).toBe("b.txt.gz");
+  });
+
+  it("audio presets reach ffmpeg; audio-only turns video into mp3", async () => {
+    await compress(
+      [new File([new Uint8Array(100)], "talk.wav", { type: "audio/wav" })],
+      { prefs: { quality: "crisp" } },
+    );
+    expect(engine.exec.mock.calls[0][0]).toContain(PRESETS.crisp.mp3q);
+    const [r] = await compress(
+      [new File([new Uint8Array(100)], "clip.mp4", { type: "video/mp4" })],
+      { prefs: { audioOnly: true } },
+    );
+    expect(r.name).toBe("clip.mp3");
+    expect(r.note).toBe("audio only");
+    expect(engine.exec.mock.calls[1][0]).toContain("-vn");
+  });
+
+  it("video presets move the CRF", async () => {
+    await compress(
+      [
+        new File([new Uint8Array(100)], "clip.mov", {
+          type: "video/quicktime",
+        }),
+      ],
+      { prefs: { quality: "lean" } },
+    );
+    const args = engine.exec.mock.calls[0][0];
+    expect(args[args.indexOf("-crf") + 1]).toBe(PRESETS.lean.crf);
+  });
+});
 
 describe("compression preserves usable files", () => {
   it("refuses multi-frame GIFs without optional control extensions", async () => {

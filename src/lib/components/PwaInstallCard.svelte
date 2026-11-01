@@ -174,7 +174,7 @@
   <aside
     class="pwa-card"
     class:closing
-    aria-label="Add {appName} to your home screen"
+    aria-label="Add {appName} to the home screen"
   >
     <button
       type="button"
@@ -204,7 +204,7 @@
         Got it
       </button>
     {:else}
-      <p class="pwa-line">Keep DrShrink a tap away on your home screen.</p>
+      <p class="pwa-line">Keep DrShrink a tap away on the home screen.</p>
       <button type="button" class="pwa-cta" on:click={handleInstall}>
         Add to home screen
       </button>

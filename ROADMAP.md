@@ -17,10 +17,10 @@ grouped by theme, honest about effort. Edit aggressively. The north star stays:
 - **Audio** → VBR mp3 via ffmpeg.wasm (q5, ~128kbps) — MP3/WAV/M4A/AAC/OGG/FLAC/AIFF
 - **Text/code** → gzip level 9, `.html` → plain text, `.docx` → text (mammoth)
 - **Batch** → one `.zip` (images/media compressed first, document formats preserved)
-- Batch OOM guard (300MB total input cap)
+- Batch OOM guard (300MB total input cap, tier-aware via `LIMITS`)
 - Already-compressed detection (politely refuses archives + PDF; HEIC tried as an
   image — Safari converts it, elsewhere a friendly "export as JPEG" nudge)
-- Folder drops expanded into their files (dotfile junk skipped, 400-file cap)
+- Folder drops expanded into their files (dotfile junk skipped, capped at the tier's batch size)
 - **Blob cache** — IndexedDB 30min TTL, results survive refresh, history re-downloadable
 - **Auto-download** on completion (toggle in options, default on)
 - Results list capped at 25 entries

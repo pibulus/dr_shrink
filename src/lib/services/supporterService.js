@@ -20,17 +20,37 @@ export const SUPPORT_URL = "https://ko-fi.com/madebypablo";
 const KEY = "drshrink-supporter";
 const KEY_EXPIRES = "drshrink-supporter-expires";
 const CODE_PREFIX = "DS-";
-const SUPPORTER_TERM_MS = 365 * 24 * 60 * 60 * 1000; // 365 days
+// The Passport is a permanent unlock (one payment, no term). Legacy 365-day
+// stamps written by older builds are still honoured until they lapse.
+const SUPPORTER_TERM_MS = null;
+
+const MB = 1024 * 1024;
 
 // Limits — centralized so they're trivial to adjust.
+//
+// Everything runs in the visitor's browser, so limits cost nothing to raise;
+// they exist only to keep the tab out of memory trouble. The free tier is
+// meant to feel genuinely generous — a phone's photo roll, a 10-minute
+// screen recording, a project folder — before the Passport ever comes up.
+// The Passport sells capability (format/quality choice, PDF, more history),
+// not permission.
+//
+// Ceilings that are TECHNICAL, not commercial:
+//  - maxFileBytes: ffmpeg.wasm is a single-thread 32-bit build; input + output
+//    + decode buffers for a 200 MB video sits comfortably under its heap.
+//    500 MB is the realistic edge on desktop; past that it's a coin flip.
+//  - maxBatchBytes: a batch zip holds every output AND the finished archive
+//    in memory at once (~2× peak). 300 MB is safe on mobile Safari.
 export const LIMITS = {
   free: {
-    maxFileBytes: 25 * 1024 * 1024, // 25 MB per file
-    maxBatch: 5, // files per drop
+    maxFileBytes: 200 * MB, // per file
+    maxBatch: 40, // files per drop (folder drops included)
+    maxBatchBytes: 300 * MB, // total input per zip batch
   },
   supporter: {
-    maxFileBytes: 100 * 1024 * 1024, // 100 MB per file (realistic for WASM)
-    maxBatch: 25, // files per drop
+    maxFileBytes: 500 * MB,
+    maxBatch: 200,
+    maxBatchBytes: 600 * MB,
   },
 };
 
@@ -95,16 +115,19 @@ export async function redeemCode(code) {
 
   const hash = await hashCode(c);
   if (VALID_CODE_HASHES.has(hash)) {
-    const expires = Date.now() + SUPPORTER_TERM_MS;
     writeStorage(KEY, "true");
-    writeStorage(KEY_EXPIRES, String(expires));
+    if (SUPPORTER_TERM_MS) {
+      writeStorage(KEY_EXPIRES, String(Date.now() + SUPPORTER_TERM_MS));
+    } else {
+      removeStorage(KEY_EXPIRES);
+    }
     isSupporter.set(true);
     return true;
   }
   return false;
 }
 
-/** Days remaining on the current contributor pass, or 0. */
+/** Days remaining on a legacy term-limited pass; 0 when permanent or absent. */
 export function daysRemaining() {
   if (!browser) return 0;
   const raw = readStorage(KEY_EXPIRES);
@@ -118,25 +141,38 @@ export function limitsFor(supporter) {
   return supporter ? LIMITS.supporter : LIMITS.free;
 }
 
+/** Whole megabytes, for copy. */
+export function limitMB(bytes) {
+  return Math.round(bytes / MB);
+}
+
 /**
  * Check a drop against the limits. Returns { ok, reason } — reason is a
- * user-facing string. Tips do not change these limits.
+ * user-facing line that states the ceiling as a plain fact (no bossing).
  */
 export function checkDrop(files, supporter) {
   const lim = limitsFor(supporter);
   if (files.length > lim.maxBatch) {
     return {
       ok: false,
-      reason: `That's ${files.length} files — DrShrink handles up to ${lim.maxBatch} per drop. Try smaller batches.`,
+      reason: `That's ${files.length} files — one drop takes up to ${lim.maxBatch}.`,
     };
   }
   const tooBig = files.find((f) => f.size > lim.maxFileBytes);
   if (tooBig) {
-    const mb = Math.round(lim.maxFileBytes / (1024 * 1024));
     return {
       ok: false,
-      reason: `"${tooBig.name}" is over DrShrink's ${mb} MB per-file limit. Try a smaller file.`,
+      reason: `"${tooBig.name}" is ${limitMB(tooBig.size)} MB — the ceiling here is ${limitMB(lim.maxFileBytes)} MB per file.`,
     };
+  }
+  if (files.length > 1) {
+    const total = files.reduce((a, f) => a + f.size, 0);
+    if (total > lim.maxBatchBytes) {
+      return {
+        ok: false,
+        reason: `${limitMB(total)} MB in one go — a zip batch tops out at ${limitMB(lim.maxBatchBytes)} MB total.`,
+      };
+    }
   }
   return { ok: true };
 }

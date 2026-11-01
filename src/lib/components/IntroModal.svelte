@@ -84,7 +84,7 @@
 
       <p class="lede">
         That's the whole thing. No settings, no sign-up, no upload — it all
-        happens right here in your browser.
+        happens right here in the browser.
       </p>
 
       <ul class="beats">

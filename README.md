@@ -56,8 +56,10 @@ Support and after a successful shrink. People choose their amount. Tips do not
 unlock features or change limits; there is no paid pass or automatic entitlement
 issuance. A real tip still needs a human check on Ko-fi.
 
-Public limits: 25 MB/file, 5 files/batch. Legacy contributor state/code utilities
-remain compatible, but no paid plan is advertised or sold by the app.
+Public limits: 200 MB/file, 40 files/drop, 300 MB per zip batch (`LIMITS` in
+`src/lib/services/supporterService.js`; the batch ceiling is a memory guard,
+not a paywall). Legacy contributor state/code utilities remain compatible, but
+no paid plan is advertised or sold by the app yet — see `docs/PASSPORT-PLAN.md`.
 
 Single HTML/DOCX inputs extract plain text, removing formatting and images.
 Batch ZIPs preserve these document formats and folder paths. Image/audio/video

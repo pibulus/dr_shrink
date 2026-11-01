@@ -19,10 +19,11 @@ const IMAGE_QUALITY = 0.86;
 const MAX_DIMENSION = 3840;
 // If we'd save less than this fraction, it's not worth degrading — keep original.
 const MIN_WORTHWHILE_SAVING = 0.08; // need to save >8% to bother
-// Batch safety: if total input exceeds this, refuse — zip holds all files
-// + a full zip copy in memory simultaneously (~2× peak). 300 MB keeps us
-// well under mobile JS heap limits.
-const MAX_BATCH_BYTES = 300 * 1024 * 1024;
+// Batch safety fallback: if total input exceeds this, refuse — zip holds all
+// files + a full zip copy in memory simultaneously (~2× peak). 300 MB keeps
+// us well under mobile JS heap limits. The caller normally passes the tier's
+// own ceiling (LIMITS.*.maxBatchBytes); this is the floor if it doesn't.
+const DEFAULT_MAX_BATCH_BYTES = 300 * 1024 * 1024;
 
 // ── type detection ──
 // heic/heif ride with images: Safari decodes them natively (great outcome),
@@ -488,11 +489,12 @@ async function compressVideo(file, onProgress) {
 }
 
 // ── batch → single .zip (shrink each shrinkable file first, then bundle) ──
-async function zipFiles(files, onProgress) {
+async function zipFiles(files, onProgress, maxBatchBytes) {
   const inputTotal = files.reduce((a, f) => a + f.size, 0);
-  if (inputTotal > MAX_BATCH_BYTES) {
+  const cap = maxBatchBytes || DEFAULT_MAX_BATCH_BYTES;
+  if (inputTotal > cap) {
     throw new Error(
-      `${formatBytes(inputTotal)} total is too much for one batch. Try fewer or smaller files.`,
+      `${formatBytes(inputTotal)} in one go — a zip batch tops out at ${formatBytes(cap)} total.`,
     );
   }
   // null prototype so a file named "__proto__" or "constructor" can't vanish
@@ -581,10 +583,11 @@ export async function compressOne(file, onProgress) {
  * Top-level entry. Single file → its handler. Multiple files → one .zip.
  * Returns an array of results.
  */
-export async function compress(fileList, { onProgress } = {}) {
+export async function compress(fileList, { onProgress, maxBatchBytes } = {}) {
   const files = [...fileList];
   if (files.length === 0) return [];
-  if (files.length > 1) return [await zipFiles(files, onProgress)];
+  if (files.length > 1)
+    return [await zipFiles(files, onProgress, maxBatchBytes)];
   return [await compressOne(files[0], onProgress)];
 }
 

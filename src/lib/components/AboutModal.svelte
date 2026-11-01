@@ -64,9 +64,9 @@
 
       <div class="body space-y-4">
         <p class="lede">
-          DrShrink takes the thing you drop and hands back something smaller and
-          more useful. No settings, no sign-up, no upload — it all happens right
-          here in your browser.
+          DrShrink takes whatever lands on it and hands back something smaller
+          and more useful. No settings, no sign-up, no upload — it all happens
+          right here in the browser.
         </p>
 
         <h4>What it does:</h4>
@@ -80,7 +80,7 @@
         <p class="quote">"Drop it. Shrink it. Done."</p>
 
         <p class="privacy">
-          🔒 Your files aren't uploaded. Recent filenames and savings stay in
+          🔒 Files aren't uploaded. Recent filenames and savings stay in
           this browser. The last 10 downloads are cached locally and available
           for up to 30 minutes. Clear Recent to remove them. The site counts
           visits; file contents aren't sent to the counter.

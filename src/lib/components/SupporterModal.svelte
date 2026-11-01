@@ -12,15 +12,15 @@
     <ThemeMascot theme={$theme} size="30px" />
   </svelte:fragment>
   <p>
-    DrShrink is a little independent tool made by Pablo. If it saved you some
-    space or a bit of hassle, a coffee helps keep it going. ☕
+    DrShrink is a little independent tool I made. If it saved some space or a
+    bit of hassle, a coffee keeps it going. ☕
   </p>
   <a class="cta" href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">
     Leave a tip on Ko-fi ↗
   </a>
   <p class="fine">
-    Choose your amount. Completely optional — tips don't unlock features or
-    change file limits. Ko-fi handles the payment on its own site.
+    Any amount, completely optional — tips don't unlock features or change
+    file limits. Ko-fi handles the payment on its own site.
   </p>
 </Modal>
 

@@ -13,7 +13,7 @@ function pick(arr) {
 // ── Drop-zone subtitle (rotates each page load / each return to idle) ──
 const SUBTITLES = [
   "photos · audio · docs · text · a whole pile → zip",
-  "feed me your chonky files",
+  "feed me the chonky files",
   "drag it here, I'll make it smaller",
   "no settings, no uploads, no nonsense",
   "I do this for free. weird, right?",

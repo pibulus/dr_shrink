@@ -35,7 +35,7 @@ const config = {
         "script-src": [
           "self",
           "wasm-unsafe-eval",
-          "https://fleetcount.pibulus.deno.net",
+          "https://hits.madebypablo.app",
           "https://static.cloudflareinsights.com",
         ],
         "style-src": ["self", "unsafe-inline"],
@@ -44,7 +44,7 @@ const config = {
         "connect-src": [
           "self",
           "blob:",
-          "https://fleetcount.pibulus.deno.net",
+          "https://hits.madebypablo.app",
           "https://static.cloudflareinsights.com",
         ],
         "worker-src": ["self", "blob:"],

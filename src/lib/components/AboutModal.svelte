@@ -3,6 +3,7 @@
   import Modal from "./Modal.svelte";
   import ThemeMascot from "./ThemeMascot.svelte";
   import { theme } from "$lib";
+  import { PRICING } from "$lib/config/pricing.js";
   import { isSupporter, SUPPORT_URL } from "$lib/services/supporterService.js";
 
   export let open = false;
@@ -53,15 +54,16 @@
     {:else}
       <div class="ds-pitch-head">
         <h2 id="about-title" class="ds-headline">
-          The shrink-anything <span class="ds-marker">thing.</span>
+          The <span class="whitespace-nowrap">shrink-anything</span>
+          <span class="ds-marker">thing.</span>
         </h2>
         <p class="ds-accent-sub">Drop it. Shrink it. Done.</p>
       </div>
       <div class="ds-pitch-copy">
         <p>
-          I kept emailing myself files that were too big for email. So I made
-          a doctor for them. Whatever lands here comes back smaller and more
-          useful — right in the browser, nothing uploaded.
+          I kept emailing myself files that were too big for email. So I made a
+          doctor for them. Whatever lands here comes back smaller and ready to
+          send — right in the browser, nothing uploaded.
         </p>
         <ul class="ds-pitch-list">
           <li>Photos → crisp and way smaller.</li>
@@ -75,7 +77,7 @@
         type="button"
         on:click={() => dispatch("showPassport")}
       >
-        DrShrink Passport
+        DrShrink Passport · {PRICING.displayPrice}
       </button>
     {/if}
 

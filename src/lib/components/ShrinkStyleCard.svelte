@@ -1,7 +1,6 @@
 <script>
-  // The Passport's dials, as segmented pills — never a slider. Locked for
-  // free visitors: same controls, disabled, one chip, the whole card asks to
-  // be opened.
+  // The Passport's dials, arranged in one calm left-aligned 2-column grid.
+  // Every row flows Left = Least shrink (Crisp / Original / Off) -> Right = Tightest shrink.
   import { createEventDispatcher, onMount } from "svelte";
   import {
     shrinkPrefs,
@@ -32,12 +31,11 @@
   const rows = [
     { key: "format", label: "Format" },
     { key: "quality", label: "Quality" },
+    { key: "maxDim", label: "Max width" },
     { key: "fitUnder", label: "Fit under" },
-    { key: "maxDim", label: "Max size" },
   ];
 </script>
 
-<!-- Locked = one big button to the Passport; unlocked = a plain card. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="ds-card style-card"
@@ -46,10 +44,10 @@
   on:keydown={onLockedActivate}
   tabindex={locked ? 0 : undefined}
   role={locked ? "button" : undefined}
-  aria-label={locked ? "Shrink style — opens with the Passport" : undefined}
+  aria-label={locked ? "Shrink dials — unlock with the Passport" : undefined}
 >
   <div class="title-row">
-    <h4 class="ds-section-title">Shrink style</h4>
+    <h4 class="ds-section-title">Shrink dials</h4>
     {#if locked}
       <span class="ds-chip">Passport</span>
     {:else if custom}
@@ -57,54 +55,67 @@
     {/if}
   </div>
 
-  {#each rows as row}
-    <div class="dial-row">
-      <span class="dial-label">{row.label}</span>
-      <div class="ds-pills" role="group" aria-label={row.label}>
-        {#each PREF_CHOICES[row.key] as c}
-          {@const na = row.key === "format" && c.id === "avif" && !avifOk}
-          <button
-            type="button"
-            class="ds-pill"
-            class:on={$shrinkPrefs[row.key] === c.id}
-            class:na
-            disabled={locked || na}
-            aria-pressed={$shrinkPrefs[row.key] === c.id}
-            title={na ? "Not in this browser" : c.hint}
-            on:click={() => setPref(row.key, c.id)}
-          >
-            {c.label}{#if na}<span class="na-tag"> n/a</span>{/if}
-          </button>
-        {/each}
+  <div class="dial-grid">
+    {#each rows as row}
+      <div class="dial-row">
+        <span class="dial-label">{row.label}</span>
+        <div
+          class="seg-track cols-{PREF_CHOICES[row.key].length}"
+          role="group"
+          aria-label={row.label}
+        >
+          {#each PREF_CHOICES[row.key] as c}
+            {@const na = row.key === "format" && c.id === "avif" && !avifOk}
+            <button
+              type="button"
+              class="seg-pill"
+              class:on={$shrinkPrefs[row.key] === c.id}
+              class:na
+              disabled={locked || na}
+              aria-pressed={$shrinkPrefs[row.key] === c.id}
+              title={na ? "AVIF encoding isn't supported in this browser" : c.hint}
+              on:click={() => setPref(row.key, c.id)}
+            >
+              <span>{c.label}</span>{#if na}<span class="na-dot" aria-hidden="true">· n/a</span>{/if}
+            </button>
+          {/each}
+        </div>
       </div>
-    </div>
-  {/each}
+    {/each}
+  </div>
 
-  <div class="dial-row switches">
+  <div class="switches">
     <label class="switch-row">
-      <span class="dial-label">Audio from video<small>drop a video, get an mp3</small></span>
+      <span class="switch-copy">
+        <span class="dial-label">Video → MP3</span>
+        <small>extract audio only</small>
+      </span>
       <button
         type="button"
         class="ds-switch"
         class:on={$shrinkPrefs.audioOnly}
         role="switch"
         aria-checked={$shrinkPrefs.audioOnly}
-        aria-label="Audio from video"
+        aria-label="Extract MP3 audio from video"
         disabled={locked}
         on:click={() => setPref("audioOnly", !$shrinkPrefs.audioOnly)}
       >
         <span class="knob"></span>
       </button>
     </label>
+
     <label class="switch-row">
-      <span class="dial-label">Loose batches<small>each file on its own, no zip</small></span>
+      <span class="switch-copy">
+        <span class="dial-label">Loose batches</span>
+        <small>each file separate</small>
+      </span>
       <button
         type="button"
         class="ds-switch"
         class:on={$shrinkPrefs.looseBatch}
         role="switch"
         aria-checked={$shrinkPrefs.looseBatch}
-        aria-label="Loose batches"
+        aria-label="Loose batches without zipping"
         disabled={locked}
         on:click={() => setPref("looseBatch", !$shrinkPrefs.looseBatch)}
       >
@@ -115,18 +126,19 @@
 
   <p class="dial-hint">
     {#if locked}
-      Free runs the balanced default. The Passport opens the dials.
+      Free runs the balanced default. Passport opens every dial.
     {:else}
-      Balanced is the default the free tier runs. Every dial here is remembered.
+      Every dial here is saved automatically for this browser.
     {/if}
   </p>
 </div>
 
 <style>
   .style-card {
+    padding: 0.7rem 0.85rem;
     display: flex;
     flex-direction: column;
-    gap: 0.8rem;
+    gap: 0.55rem;
   }
   .style-card.locked {
     cursor: pointer;
@@ -135,11 +147,12 @@
     outline: 2px solid var(--ds-accent-color, #c026d3);
     outline-offset: 3px;
   }
-  .locked .dial-row,
+  .locked .dial-grid,
   .locked .switches {
-    opacity: 0.55;
+    opacity: 0.58;
     pointer-events: none;
   }
+
   .title-row {
     display: flex;
     align-items: center;
@@ -150,60 +163,148 @@
     margin: 0;
   }
   .reset {
-    min-height: 32px;
-    padding: 0 0.5rem;
+    min-height: 28px;
+    padding: 0 0.4rem;
     font-size: 0.72rem;
     font-weight: 700;
     color: var(--ds-accent-color, #c026d3);
     text-decoration: underline;
     text-underline-offset: 0.15em;
   }
+
+  .dial-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+  }
+
   .dial-row {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 4.9rem minmax(0, 1fr);
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.5rem;
   }
-  .dial-row :global(.ds-pills) {
-    justify-content: center;
-  }
+
   .dial-label {
-    display: flex;
-    flex-direction: column;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 800;
     color: var(--ds-ink-deep, #1e1714);
+    line-height: 1.2;
+    white-space: nowrap;
   }
-  .dial-label small {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--ds-muted, #6b6671);
+
+  .seg-track {
+    display: grid;
+    gap: 0.25rem;
+    padding: 0.18rem;
+    border-radius: 11px;
+    background: rgba(41, 37, 36, 0.06);
+    border: 1.5px solid rgba(41, 37, 36, 0.14);
   }
-  .ds-pill.na {
-    opacity: 0.45;
+  .seg-track.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  .na-tag {
-    font-size: 0.65rem;
+  .seg-track.cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .seg-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-height: 32px;
+    padding: 0 0.35rem;
+    border-radius: 8px;
+    border: 1.5px solid transparent;
+    background: transparent;
+    color: var(--ds-ink-deep, #1e1714);
+    font-size: 0.75rem;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background-color 0.14s ease,
+      color 0.14s ease,
+      box-shadow 0.14s ease;
+  }
+  .seg-pill:hover:not(:disabled):not(.on) {
+    background: rgba(255, 253, 247, 0.78);
+  }
+  .seg-pill.on {
+    background: var(--ds-primary-color, #9333ea);
+    color: var(--ds-paper, #fffdf7);
+    border-color: var(--ds-ink-deep, #1e1714);
+    box-shadow: 1.5px 1.5px 0 var(--ds-ink-deep, #1e1714);
+  }
+  .seg-pill:disabled {
+    cursor: default;
+  }
+  .seg-pill.na {
+    opacity: 0.42;
+  }
+  .na-dot {
+    font-size: 0.62rem;
     font-weight: 700;
+    opacity: 0.85;
   }
+
   .switches {
-    align-items: stretch;
-    gap: 0.6rem;
-    padding-top: 0.2rem;
-    border-top: 2px dashed rgba(41, 37, 36, 0.14);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding-top: 0.45rem;
+    border-top: 1.5px dashed rgba(41, 37, 36, 0.14);
   }
+
   .switch-row {
-    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: 0.35rem;
+    padding: 0.3rem 0.5rem;
+    border-radius: 10px;
+    background: rgba(41, 37, 36, 0.035);
     cursor: pointer;
   }
-  .dial-hint {
-    font-size: 0.75rem;
+
+  .switch-copy {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .switch-copy small {
+    font-size: 0.68rem;
     font-weight: 600;
-    line-height: 1.4;
     color: var(--ds-muted, #6b6671);
+    line-height: 1.25;
+  }
+
+  .dial-hint {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--ds-muted, #6b6671);
+    text-align: center;
+    text-wrap: balance;
+  }
+
+  @media (max-width: 420px) {
+    .dial-row {
+      grid-template-columns: 4.3rem minmax(0, 1fr);
+      gap: 0.35rem;
+    }
+    .seg-pill {
+      font-size: 0.7rem;
+      padding: 0 0.2rem;
+    }
+    .na-dot {
+      display: none;
+    }
+    .switches {
+      grid-template-columns: 1fr;
+      gap: 0.35rem;
+    }
   }
 </style>

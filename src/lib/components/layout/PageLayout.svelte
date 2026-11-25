@@ -8,31 +8,31 @@
 <a class="skip-link" href="#main-content">Skip to content</a>
 
 <div
-  class="bg-gradient-mesh page-shell grid min-h-[100dvh] gap-8 px-4 py-6 pt-[clamp(4rem,12vh,8rem)] font-sans text-gray-800 antialiased sm:px-6 md:px-10"
+  class="bg-gradient-mesh page-shell flex min-h-[100dvh] flex-col pt-[clamp(4rem,12vh,8rem)] font-sans text-[#1e1714] antialiased"
 >
   <main
     id="main-content"
-    class="mx-auto flex w-full max-w-md flex-col items-center sm:max-w-lg md:max-w-2xl lg:max-w-3xl"
+    class="mx-auto flex w-full max-w-md flex-1 flex-col items-center px-4 pb-8 sm:max-w-lg sm:px-6 md:max-w-2xl md:px-10 lg:max-w-3xl"
   >
     <slot />
   </main>
 
   <footer
-    class="ds-app-footer fixed bottom-0 left-0 right-0 z-10 box-border border-t pb-2 pt-3 text-center text-xs sm:pb-4 sm:pt-5 px-4 sm:px-6 md:px-8"
+    class="ds-app-footer mt-auto w-full box-border border-t-2 pb-2 pt-2.5 text-center text-xs sm:pb-3.5 sm:pt-3.5 px-4 sm:px-6 md:px-8"
   >
     <div
       class="footer-row mx-auto flex w-full flex-row items-center justify-center gap-3 sm:justify-between"
     >
       <div class="hidden items-center sm:flex min-w-0 shrink whitespace-nowrap">
-        <span class="mr-1 text-sm font-medium">
+        <span class="mr-1 text-sm font-semibold">
           © {footerYear}
           {appName}
         </span>
         <span class="footer-dot mx-2">•</span>
-        <span class="text-sm font-light">
+        <span class="text-sm font-normal">
           Made with
           <span
-            class="footer-heart animate-pulse transition-transform hover:scale-110"
+            class="footer-heart transition-transform hover:scale-110"
             aria-label="love">❤️</span
           > in Melbourne
         </span>
@@ -45,11 +45,6 @@
 </div>
 
 <style>
-  .page-shell {
-    /* reserve room for the fixed footer (matches ZipList's tuned values) */
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
-  }
-
   @media (max-width: 640px) {
     .page-shell {
       padding-top: max(
@@ -63,9 +58,7 @@
     }
   }
   /* Desktop top padding = TalkType's live value (measured 2026-11-01: mascot
-     lands at y=80 @1280×800, y=90 @1440×900). The old clamp(1.5rem,5vh,3rem)
-     seated the doctor 40px higher than the ghost and left ~300px of dead
-     cream under the drop zone on a 900px screen. */
+     lands at y=80 @1280×800, y=90 @1440×900). */
   @media (min-width: 768px) {
     .page-shell {
       display: flex;
@@ -93,21 +86,13 @@
   }
 
   .ds-app-footer {
-    color: var(--footer-text-color, #4b5563);
+    color: var(--footer-text-color, #3f3630);
     background: var(
       --footer-bg,
-      rgba(var(--ds-footer-surface-rgb, 255, 255, 255), 0.82)
+      rgba(var(--ds-footer-surface-rgb, 255, 252, 245), 0.86)
     );
-    border-color: var(
-      --footer-border-color,
-      rgba(var(--ds-primary-color-rgb, 147, 51, 234), 0.14)
-    );
+    border-color: var(--footer-border-color, #1e1714);
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
-    /* Fleet-standard frosted footer (2026-07-21) — same values across
-       ziplist / talktype / daysay / riffrap / dr_shrink. Declared in CSS
-       rather than a backdrop-blur-* utility so it can't be dropped by a
-       later class shuffle. 3px was too weak to frost anything; 14px +
-       saturation is what makes it read as glass instead of a thin veil. */
     -webkit-backdrop-filter: blur(14px) saturate(1.5);
     backdrop-filter: blur(14px) saturate(1.5);
   }

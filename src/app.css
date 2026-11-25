@@ -6,22 +6,26 @@
 
 html,
 body {
-  height: 100%;
+  min-height: 100%;
+  background-color: var(--ds-bg, #fff6e6);
+  scrollbar-gutter: auto !important;
 }
 
 body {
   margin: 0;
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
-  color: var(--ds-ink, #2a2233);
-  background: var(--ds-bg, #f3e8ff);
+  color: var(--ds-ink, #1e1714);
+  background: var(--ds-bg, #fff6e6);
   transition: background 0.3s ease;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* Modal scroll-lock — toggled by +page.svelte while any modal is open. */
+html:has(body.modal-open),
 body.modal-open {
   overflow: hidden;
+  scrollbar-gutter: auto !important;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -203,6 +207,7 @@ body.modal-open {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--ds-accent-color, #c026d3);
+  text-wrap: balance;
 }
 @media (min-width: 640px) {
   .ds-headline {
@@ -216,11 +221,12 @@ body.modal-open {
   text-align: left;
   font-size: 0.875rem;
   font-weight: 500;
-  line-height: 1.375;
+  line-height: 1.45;
   color: var(--ds-copy);
+  text-wrap: pretty;
 }
 .ds-pitch-copy > * + * {
-  margin-top: 0.625rem;
+  margin-top: 0.85rem;
 }
 @media (min-width: 640px) {
   .ds-pitch-copy {
@@ -264,8 +270,14 @@ body.modal-open {
   font-weight: 600;
   line-height: 1.45;
   color: var(--ds-muted);
+  text-wrap: balance;
 }
 .ds-fine a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 0.25rem;
+  margin: -0.35rem -0.25rem;
   color: var(--ds-accent-color, #c026d3);
   font-weight: 700;
   text-decoration: underline;

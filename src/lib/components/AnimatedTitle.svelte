@@ -36,8 +36,8 @@
         <span class="suffix-wrapper">
           <AppSuffix
             color="inherit"
-            size="35%"
-            offsetX="-0.6em"
+            size="32%"
+            offsetX="-1.52em"
             offsetY="0px"
             position="bottom-right"
             customClass="title-suffix"
@@ -68,7 +68,7 @@
   }
 
   .title-ink {
-    color: var(--ds-ink, #1f2937);
+    color: var(--ds-ink, #1e1714);
   }
 
   .stagger-letter {
@@ -137,8 +137,8 @@
   .suffix-wrapper {
     position: absolute;
     display: inline-block;
-    bottom: 0;
-    right: 0.25em;
+    bottom: 0.13em;
+    right: 0;
     z-index: 1;
   }
 

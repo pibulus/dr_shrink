@@ -22,26 +22,26 @@ export const DEFAULT_PREFS = Object.freeze({
 export const PREF_CHOICES = {
   format: [
     { id: "webp", label: "WebP", hint: "smallest all-rounder" },
+    { id: "avif", label: "AVIF", hint: "newest, tiniest" },
     { id: "jpeg", label: "JPEG", hint: "opens anywhere" },
     { id: "png", label: "PNG", hint: "keeps transparency" },
-    { id: "avif", label: "AVIF", hint: "newest, tiniest" },
   ],
   quality: [
-    { id: "lean", label: "Lean", hint: "smallest files" },
-    { id: "balanced", label: "Balanced", hint: "the default" },
     { id: "crisp", label: "Crisp", hint: "closest to source" },
-  ],
-  fitUnder: [
-    { id: 0, label: "Off", hint: "no target" },
-    { id: 8, label: "8 MB", hint: "chat uploads" },
-    { id: 10, label: "10 MB", hint: "most mail" },
-    { id: 25, label: "25 MB", hint: "big mail" },
+    { id: "balanced", label: "Balanced", hint: "the default" },
+    { id: "lean", label: "Lean", hint: "smallest files" },
   ],
   maxDim: [
     { id: 0, label: "Original", hint: "no resize" },
     { id: 3840, label: "4K", hint: "the default" },
     { id: 2560, label: "2K", hint: "screens" },
     { id: 1920, label: "1080p", hint: "sharing" },
+  ],
+  fitUnder: [
+    { id: 0, label: "Off", hint: "no target" },
+    { id: 25, label: "25 MB", hint: "big mail" },
+    { id: 10, label: "10 MB", hint: "most mail" },
+    { id: 8, label: "8 MB", hint: "chat uploads" },
   ],
 };
 

@@ -183,10 +183,10 @@
       </div>
 
       <ul class="ds-pitch-list ds-pitch-copy">
-        <li>Output format: WebP, JPEG, PNG or AVIF.</li>
+        <li>Output format: WebP, AVIF, JPEG, or PNG.</li>
         <li>Three quality presets, zero sliders.</li>
-        <li>Fit under 8, 10 or 25 MB for mail and chat.</li>
-        <li>Audio out of video, loose batches, longer memory.</li>
+        <li>Fit under 25, 10, or 8 MB for mail and chat.</li>
+        <li>Video to MP3, loose batches &amp; longer history.</li>
         <li>Ceilings up to 500 MB a file, 200 files a drop.</li>
       </ul>
 
